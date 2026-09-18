@@ -5,6 +5,7 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <ESPmDNS.h>
 #include <ArduinoOTA.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
@@ -397,6 +398,16 @@ void initOTA()
                 else if (error == OTA_END_ERROR)
                   Serial.println("  Ошибка завершения");
                });
+
+  // Запуск mDNS
+  if (MDNS.begin(OTA_HOSTNAME))
+  {
+    Serial.println("mDNS started: " + String(OTA_HOSTNAME));
+  }
+  else
+  {
+    Serial.println("mDNS failed!");
+  }
 
   // Запуск OTA
   ArduinoOTA.begin();
