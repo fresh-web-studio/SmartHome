@@ -19,6 +19,10 @@
 #define SENSING_INTERVAL 5000
 #define SEND_INTERVAL 10000
 
+// Индикация качества Wi-Fi через встроенный LED (GPIO 2)
+#define LED_BUILTIN_PIN 2
+#define WIFI_LED_INTERVAL 3000  // Обновление индикации Wi-Fi каждые 3 сек
+
 // ======================== ИНИЦИАЛИЗАЦИЯ ========================
 
 OneWire oneWire(ONE_WIRE_BUS);
@@ -32,15 +36,19 @@ DeviceAddress returnAddr = {0x28, 0xEE, 0xF2, 0x14, 0x00, 0x00, 0x00, 0x37};
 
 unsigned long previousSensingTime = 0;
 unsigned long previousSendTime = 0;
-float tempSupply = 999.0;
-float tempReturn = 999.0;
+float tempSupply = 0.0;
+float tempReturn = 0.0;
 bool wifiConnected = false;
+
+// Таймер индикации Wi-Fi
+unsigned long wifiLedLastUpdate = 0;
 
 // ======================== FORWARD DECLARATIONS ========================
 
 void readTemperature();
 void sendToSprutHub();
 bool connectMQTT();
+void updateWifiLed(int rssi);
 
 // ======================== ФУНКЦИИ ========================
 
@@ -102,6 +110,11 @@ void setup()
   {
     Serial.println("\nERROR: WiFi connection failed!");
   }
+
+  // Инициализация встроенного LED для индикации
+  pinMode(LED_BUILTIN_PIN, OUTPUT);
+  digitalWrite(LED_BUILTIN_PIN, LOW);
+  Serial.println("LED indicator initialized (GPIO 2)");
 }
 
 void loop()
@@ -133,6 +146,17 @@ void loop()
     connectMQTT();
   }
   mqttClient.loop();
+
+  // Индикация Wi-Fi
+  if (wifiConnected)
+  {
+    int wifiRSSI = WiFi.RSSI();
+    updateWifiLed(wifiRSSI);
+  }
+  else
+  {
+    digitalWrite(LED_BUILTIN_PIN, LOW);
+  }
 
   delay(100);
 }
@@ -219,6 +243,10 @@ void sendToSprutHub()
   if (!wifiConnected)
     return;
 
+  // Не отправляем, если температура не прочитана
+  if (tempSupply == 0.0 && tempReturn == 0.0)
+    return;
+
   char supplyStr[10];
   char returnStr[10];
   sprintf(supplyStr, "%.2f", tempSupply);
@@ -254,4 +282,54 @@ bool connectMQTT()
     Serial.printf("MQTT failed (rc=%d)\n", mqttClient.state());
     return false;
   }
+}
+
+// ======================== ИНДИКАЦИЯ ========================
+
+// Индикация качества Wi-Fi через встроенный LED
+void updateWifiLed(int rssi)
+{
+  unsigned long now = millis();
+  if (now - wifiLedLastUpdate < WIFI_LED_INTERVAL)
+    return;
+  wifiLedLastUpdate = now;
+
+  int blinkDuration = 0;
+  int pauseDuration = 0;
+
+  if (rssi > -50)
+  {
+    // Отлично (-30...-50) — горит постоянно
+    digitalWrite(LED_BUILTIN_PIN, HIGH);
+    return;
+  }
+  else if (rssi > -60)
+  {
+    // Хорошо (-50...-60) — мигает 1 раз в 2 сек
+    blinkDuration = 500;
+    pauseDuration = 1500;
+  }
+  else if (rssi > -70)
+  {
+    // Средне (-60...-70) — мигает 1 раз в 3 сек
+    blinkDuration = 300;
+    pauseDuration = 1700;
+  }
+  else if (rssi > -80)
+  {
+    // Слабо (-70...-80) — мигает 1 раз в 5 сек
+    blinkDuration = 200;
+    pauseDuration = 2800;
+  }
+  else
+  {
+    // Очень слабо (<-80) — не мигает
+    digitalWrite(LED_BUILTIN_PIN, LOW);
+    return;
+  }
+
+  digitalWrite(LED_BUILTIN_PIN, HIGH);
+  delay(blinkDuration);
+  digitalWrite(LED_BUILTIN_PIN, LOW);
+  delay(pauseDuration);
 }
