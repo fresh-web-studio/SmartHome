@@ -118,8 +118,15 @@ void setup()
   digitalWrite(LED_BUILTIN_PIN, LOW);
   Serial.println("LED indicator initialized (GPIO 2)");
 
-  // Инициализация OTA
-  initOTA();
+  // Инициализация OTA (ТОЛЬКО после подключения к Wi-Fi!)
+  if (wifiConnected)
+  {
+    initOTA();
+  }
+  else
+  {
+    Serial.println("OTA skipped - WiFi not connected");
+  }
 }
 
 void loop()
