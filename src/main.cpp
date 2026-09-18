@@ -5,6 +5,7 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <ArduinoOTA.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <PubSubClient.h>
@@ -49,6 +50,7 @@ void readTemperature();
 void sendToSprutHub();
 bool connectMQTT();
 void updateWifiLed(int rssi);
+void initOTA();
 
 // ======================== ФУНКЦИИ ========================
 
@@ -115,6 +117,9 @@ void setup()
   pinMode(LED_BUILTIN_PIN, OUTPUT);
   digitalWrite(LED_BUILTIN_PIN, LOW);
   Serial.println("LED indicator initialized (GPIO 2)");
+
+  // Инициализация OTA
+  initOTA();
 }
 
 void loop()
@@ -157,6 +162,9 @@ void loop()
   {
     digitalWrite(LED_BUILTIN_PIN, LOW);
   }
+
+  // Обработка OTA обновлений
+  ArduinoOTA.handle();
 
   delay(100);
 }
@@ -332,4 +340,63 @@ void updateWifiLed(int rssi)
   delay(blinkDuration);
   digitalWrite(LED_BUILTIN_PIN, LOW);
   delay(pauseDuration);
+}
+
+// ======================== OTA (Over-The-Air) ========================
+
+void initOTA()
+{
+  // Настройка OTA
+  ArduinoOTA.setHostname(OTA_HOSTNAME);
+  ArduinoOTA.setPassword(OTA_PASSWORD);
+
+  // События OTA
+  ArduinoOTA.onStart([]()
+                     {
+                       Serial.println("\nOTA: Начало обновления");
+                       Serial.println("Остановить MQTT и датчики...");
+                       
+                       // Мигание LED во время обновления
+                       pinMode(LED_BUILTIN_PIN, OUTPUT);
+                       for (int i = 0; i < 10; i++)
+                       {
+                         digitalWrite(LED_BUILTIN_PIN, HIGH);
+                         delay(100);
+                         digitalWrite(LED_BUILTIN_PIN, LOW);
+                         delay(100);
+                       }
+                     })
+      .onEnd([]()
+             {
+              Serial.println("\nOTA: Обновление завершено!");
+              Serial.println("Перезагрузка через 1 сек...");
+              delay(1000);
+             })
+      .onProgress([](unsigned int progress, unsigned int total)
+                  {
+                    Serial.printf("OTA: %u%%\r", (progress / (total / 100)));
+                  })
+      .onError([](ota_error_t error)
+               {
+                Serial.printf("OTA: Ошибка [%d]\n", error);
+                if (error == OTA_AUTH_ERROR)
+                  Serial.println("  Ошибка аутентификации");
+                else if (error == OTA_BEGIN_ERROR)
+                  Serial.println("  Ошибка начала обновления");
+                else if (error == OTA_CONNECT_ERROR)
+                  Serial.println("  Ошибка подключения");
+                else if (error == OTA_RECEIVE_ERROR)
+                  Serial.println("  Ошибка приёма данных");
+                else if (error == OTA_END_ERROR)
+                  Serial.println("  Ошибка завершения");
+               });
+
+  // Запуск OTA
+  ArduinoOTA.begin();
+
+  Serial.println("OTA готова. Обновляйте по Wi-Fi:");
+  Serial.printf("  Имя: %s\n", OTA_HOSTNAME);
+  Serial.printf("  IP: %s\n", WiFi.localIP().toString().c_str());
+  Serial.printf("  Порт: 3232\n");
+  Serial.printf("  Пароль: %s\n", OTA_PASSWORD);
 }
