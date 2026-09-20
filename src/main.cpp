@@ -41,7 +41,19 @@ unsigned long previousSendTime = 0;
 float tempSupply = 0.0;
 float tempReturn = 0.0;
 bool wifiConnected = false;
-bool connectedToSecondary = false;  // К какой сети подключены
+int currentNetwork = 0;  // Текущая сеть (0, 1 или 2)
+
+// Массив WiFi сетей для перебора
+struct WiFiNetwork
+{
+  const char *ssid;
+  const char *password;
+};
+
+WiFiNetwork networks[3] = {
+    {WIFI_SSID_1, WIFI_PASSWORD_1},
+    {WIFI_SSID_2, WIFI_PASSWORD_2},
+    {WIFI_SSID_3, WIFI_PASSWORD_3}};
 
 // Таймер индикации Wi-Fi
 unsigned long wifiLedLastUpdate = 0;
@@ -91,41 +103,25 @@ void setup()
 
   Serial.println();
 
-  // ==================== ПОДКЛЮЧЕНИЕ К WI-FI (ДВЕ СЕТИ) ====================
+  // ==================== ПОДКЛЮЧЕНИЕ К WI-FI (ТРИ СЕТИ) ====================
   Serial.println("Подключение к Wi-Fi...");
-  Serial.printf("  Основная: %s\n", WIFI_SSID_1);
-  Serial.printf("  Резервная: %s\n", WIFI_SSID_2);
+  Serial.printf("  1: %s\n", WIFI_SSID_1);
+  Serial.printf("  2: %s\n", WIFI_SSID_2);
+  Serial.printf("  3: %s\n", WIFI_SSID_3);
 
-  // Сначала подключаемся к основной сети
+  int currentNetwork = 0;
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID_1, WIFI_PASSWORD);
-
-  unsigned long startTime = millis();
   bool connected = false;
 
-  // Ждём подключения к основной сети (до 5 секунд)
-  while (WiFi.status() != WL_CONNECTED && (millis() - startTime < 5000))
+  // Пробуем каждую сеть по очереди
+  for (int i = 0; i < 3; i++)
   {
-    delay(500);
-    Serial.print(".");
-  }
-
-  if (WiFi.status() == WL_CONNECTED)
-  {
-    connected = true;
-    wifiConnected = true;
-    connectedToSecondary = false;
-  }
-  else
-  {
-    Serial.println("\n  Основная сеть не найдена! Подключение к резервной...");
-
-    // Подключаемся к резервной сети
+    Serial.printf("\n  Попытка %d/3: %s...\n", i + 1, networks[i].ssid);
     WiFi.disconnect();
-    delay(1000);
-    WiFi.begin(WIFI_SSID_2, WIFI_PASSWORD);
+    delay(500);
+    WiFi.begin(networks[i].ssid, networks[i].password);
 
-    startTime = millis();
+    unsigned long startTime = millis();
     while (WiFi.status() != WL_CONNECTED && (millis() - startTime < 5000))
     {
       delay(500);
@@ -135,24 +131,33 @@ void setup()
     if (WiFi.status() == WL_CONNECTED)
     {
       connected = true;
-      wifiConnected = true;
-      connectedToSecondary = true;
+      currentNetwork = i;
+      break;
+    }
+    else
+    {
+      Serial.println("\n  Не удалось подключиться");
     }
   }
 
   if (connected)
   {
-    Serial.println("\nWiFi подключено!");
+    wifiConnected = true;
+    Serial.println("\n✅ WiFi подключено!");
     Serial.printf("  IP: %s\n", WiFi.localIP().toString().c_str());
     Serial.printf("  RSSI: %d dBm\n", WiFi.RSSI());
-    if (connectedToSecondary)
-      Serial.println("  ⚠️  Подключено к РЕЗЕРВНОЙ сети");
+    Serial.printf("  Сеть: %s\n", networks[currentNetwork].ssid);
+
+    if (currentNetwork == 0)
+      Serial.println("  ✅ ОСНОВНАЯ сеть");
+    else if (currentNetwork == 1)
+      Serial.println("  ⚠️  РЕЗЕРВНАЯ сеть #1");
     else
-      Serial.println("  ✅ Подключено к ОСНОВНОЙ сети");
+      Serial.println("  ⚠️  РЕЗЕРВНАЯ сеть #2");
   }
   else
   {
-    Serial.println("\nERROR: Не удалось подключиться ни к одной сети!");
+    Serial.println("\n❌ ERROR: Не удалось подключиться ни к одной сети!");
   }
 
   // Инициализация встроенного LED для индикации
@@ -175,21 +180,19 @@ void loop()
 {
   unsigned long currentTime = millis();
 
-  // ==================== ПЕРЕПОДКЛЮЧЕНИЕ К WI-FI ====================
+  // ==================== ПЕРЕПОДКЛЮЧЕНИЕ К WI-FI (3 СЕТИ) ====================
   if (!WiFi.isConnected())
   {
     Serial.println("\n⚠️  Wi-Fi отключён! Переподключение...");
     wifiConnected = false;
 
-    // Если были на резервной — пробуем основную
-    // Если были на основной — пробуем резервную
-    const char *ssidToTry = connectedToSecondary ? WIFI_SSID_1 : WIFI_SSID_2;
-    connectedToSecondary = !connectedToSecondary;
+    // Пробуем следующую сеть в цикле
+    currentNetwork = (currentNetwork + 1) % 3;
+    Serial.printf("  Пробуем сеть %d/3: %s\n", currentNetwork + 1, networks[currentNetwork].ssid);
 
-    Serial.printf("  Пробуем сеть: %s\n", ssidToTry);
     WiFi.disconnect();
     delay(1000);
-    WiFi.begin(ssidToTry, WIFI_PASSWORD);
+    WiFi.begin(networks[currentNetwork].ssid, networks[currentNetwork].password);
 
     unsigned long start = millis();
     while (WiFi.status() != WL_CONNECTED && (millis() - start < 8000))
@@ -204,10 +207,7 @@ void loop()
       Serial.println("\n  ✅ Переподключено!");
       Serial.printf("  IP: %s\n", WiFi.localIP().toString().c_str());
       Serial.printf("  RSSI: %d dBm\n", WiFi.RSSI());
-      if (connectedToSecondary)
-        Serial.println("  ⚠️  Подключено к РЕЗЕРВНОЙ сети");
-      else
-        Serial.println("  ✅ Подключено к ОСНОВНОЙ сети");
+      Serial.printf("  Сеть: %s\n", networks[currentNetwork].ssid);
     }
     else
     {
