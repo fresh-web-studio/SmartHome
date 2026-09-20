@@ -18,12 +18,16 @@
 #define ONE_WIRE_BUS 4
 
 // Интервал опроса
-#define SENSING_INTERVAL 5000
-#define SEND_INTERVAL 10000
+#define SENSING_INTERVAL 10000
+#define SEND_INTERVAL 15000
 
 // Индикация качества Wi-Fi через встроенный LED (GPIO 2)
 #define LED_BUILTIN_PIN 2
 #define WIFI_LED_INTERVAL 3000  // Обновление индикации Wi-Fi каждые 3 сек
+
+// ======================== ДИАГНОСТИКА (ПЕРЕДНЯЯ ОБЪЯВЛЕННАЯ) ========================
+
+void diagnoseOneWire();
 
 // ======================== ИНИЦИАЛИЗАЦИЯ ========================
 
@@ -35,6 +39,84 @@ PubSubClient mqttClient(espClient);
 // Адреса датчиков
 DeviceAddress supplyAddr = {0x28, 0x74, 0x59, 0x15, 0x00, 0x00, 0x00, 0x85};
 DeviceAddress returnAddr = {0x28, 0xEE, 0xF2, 0x14, 0x00, 0x00, 0x00, 0x37};
+
+// ======================== ДИАГНОСТИКА ========================
+
+void diagnoseOneWire()
+{
+  Serial.println("\n========== ДИАГНОСТИКА 1-WIRE ==========");
+  
+  // Проверка состояния линии DATA
+  pinMode(ONE_WIRE_BUS, INPUT_PULLUP);
+  delay(100);
+  
+  int state = digitalRead(ONE_WIRE_BUS);
+  Serial.printf("Состояние линии DATA: %s\n", state ? "HIGH (открыта)" : "LOW (замкнута!)");
+  
+  if (state == LOW)
+  {
+    Serial.println("⚠️  ЛИНИЯ DATA ЗАМКНУТА НА ЗЕМЛЮ!");
+    Serial.println("Проверьте:");
+    Serial.println("  1. Нет ли короткого замыкания DATA-GND");
+    Serial.println("  2. Правильно ли подключён резистор 4.7 кОм");
+    Serial.println("  3. Не оборван ли провод");
+  }
+  else
+  {
+    Serial.println("✅ Линия DATA открыта (резистор подтяжки работает)");
+  }
+  
+  // Пробуем найти устройства
+  sensors.begin();
+  
+  Serial.println("\nПоиск датчиков...");
+  int deviceCount = 0;
+  
+  for (int attempt = 0; attempt < 10; attempt++)
+  {
+    deviceCount = sensors.getDeviceCount();
+    if (deviceCount > 0)
+      break;
+    Serial.printf("  Попытка %d/10: не найдено\n", attempt + 1);
+    delay(1500);
+  }
+  
+  if (deviceCount > 0)
+  {
+    Serial.printf("\n✅ НАЙДЕНО %d ДАТЧИКОВ!\n\n", deviceCount);
+    sensors.setResolution(10);
+    
+    for (int i = 0; i < deviceCount; i++)
+    {
+      DeviceAddress addr;
+      sensors.getAddress(addr, i);
+      Serial.printf("Датчик %d: ", i);
+      for (int j = 0; j < 8; j++)
+      {
+        if (addr[j] < 16)
+          Serial.print("0");
+        Serial.print(addr[j], HEX);
+        if (j < 7)
+          Serial.print(":");
+      }
+      float temp = sensors.getTempCByIndex(i);
+      Serial.printf("  Температура: %.2f°C\n", temp);
+    }
+  }
+  else
+  {
+    Serial.println("\n❌ ДАТЧИКИ НЕ НАЙДЕНЫ!");
+    Serial.println("\nЧТО ПРОВЕРИТЬ:");
+    Serial.println("  1. Резистор 4.7 кОм подключён к DATA и 3.3V");
+    Serial.println("  2. Резистор должен быть НА СТОРОНЕ ESP32 (не на датчиках!)");
+    Serial.println("  3. Проверьте подключение провода DATA к GPIO 4");
+    Serial.println("  4. Проверьте подключение VCC и GND");
+    Serial.println("  5. Для 30м провода попробуйте резистор 2.2 кОм");
+    Serial.println("  6. Проверьте что датчики не сгорели");
+  }
+  
+  Serial.println("\n========================================\n");
+}
 
 unsigned long previousSensingTime = 0;
 unsigned long previousSendTime = 0;
@@ -78,28 +160,8 @@ void setup()
   Serial.println("  ESP32 DS18B20 - Ст01");
   Serial.println("========================================");
 
-  sensors.begin();
-  sensors.setResolution(12);
-
-  int deviceCount = sensors.getDeviceCount();
-  Serial.printf("Found %d DS18B20 devices\n\n", deviceCount);
-
-  for (int i = 0; i < deviceCount; i++)
-  {
-    DeviceAddress addr;
-    sensors.getAddress(addr, i);
-    Serial.printf("Sensor %d: ", i);
-    for (int j = 0; j < 8; j++)
-    {
-      if (addr[j] < 16)
-        Serial.print("0");
-      Serial.print(addr[j], HEX);
-      if (j < 7)
-        Serial.print(":");
-    }
-    float temp = sensors.getTempCByIndex(i);
-    Serial.printf("  Temp: %.2f°C\n", temp);
-  }
+  // Запускаем диагностику 1-Wire
+  diagnoseOneWire();
 
   Serial.println();
 
