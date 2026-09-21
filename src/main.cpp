@@ -28,6 +28,7 @@
 // ======================== ДИАГНОСТИКА (ПЕРЕДНЯЯ ОБЪЯВЛЕННАЯ) ========================
 
 void diagnoseOneWire();
+void scanAllSensors();
 
 // ======================== ИНИЦИАЛИЗАЦИЯ ========================
 
@@ -37,14 +38,78 @@ WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 
 // Адреса датчиков St01
-DeviceAddress st01SupplyAddr = {0x28, 0x74, 0x59, 0x15, 0x00, 0x00, 0x00, 0x85};
-DeviceAddress st01ReturnAddr = {0x28, 0xEE, 0xF2, 0x14, 0x00, 0x00, 0x00, 0x37};
+DeviceAddress st01SupplyAddr = ST01_SUPPLY_ADDR;
+DeviceAddress st01ReturnAddr = ST01_RETURN_ADDR;
 
-// Адреса датчиков St02 (ЗАМЕНИТЕ на реальные адреса!)
-DeviceAddress st02SupplyAddr = {0x28, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-DeviceAddress st02ReturnAddr = {0x28, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+// Адреса датчиков St02 (с реальными адресами!)
+DeviceAddress st02SupplyAddr = ST02_SUPPLY_ADDR;
+DeviceAddress st02ReturnAddr = ST02_RETURN_ADDR;
 
 // ======================== ДИАГНОСТИКА ========================
+
+void scanAllSensors()
+{
+  Serial.println("\n========== СКАНИРОВАНИЕ ВСЕХ ДАТЧИКОВ ==========");
+  Serial.println("Ищем все датчики DS18B20 на шине...\n");
+  
+  sensors.begin();
+  sensors.setResolution(12);
+  
+  int deviceCount = sensors.getDeviceCount();
+  
+  if (deviceCount == 0)
+  {
+    Serial.println("❌ ДАТЧИКИ НЕ НАЙДЕНЫ!");
+    Serial.println("\nЧТО ПРОВЕРИТЬ:");
+    Serial.println("  1. Резистор 4.7 кОм подключён к DATA и 3.3V");
+    Serial.println("  2. Резистор должен быть НА СТОРОНЕ ESP32 (не на датчиках!)");
+    Serial.println("  3. Проверьте подключение провода DATA к GPIO 4");
+    Serial.println("  4. Проверьте подключение VCC и GND");
+    Serial.println("  5. Для 30м провода попробуйте резистор 2.2 кОм");
+    Serial.println("  6. Проверьте что датчики не сгорели");
+  }
+  else
+  {
+    Serial.printf("✅ НАЙДЕНО %d ДАТЧИКОВ!\n\n", deviceCount);
+    
+    // Ждём завершения измерений
+    sensors.requestTemperatures();
+    delay(1000);
+    
+    for (int i = 0; i < deviceCount; i++)
+    {
+      DeviceAddress addr;
+      sensors.getAddress(addr, i);
+      
+      Serial.printf("Датчик %d: ", i);
+      for (int j = 0; j < 8; j++)
+      {
+        if (addr[j] < 16)
+          Serial.print("0");
+        Serial.print(addr[j], HEX);
+        if (j < 7)
+          Serial.print(":");
+      }
+      
+      float temp = sensors.getTempCByIndex(i);
+      if (temp == DEVICE_DISCONNECTED_C)
+      {
+        Serial.println("  [НЕ ОТВЕЧАЕТ]");
+      }
+      else
+      {
+        Serial.printf("  Температура: %.2f°C", temp);
+      }
+    }
+    
+    Serial.println("\n========================================");
+    Serial.println("\n📋 СКОПИРУЙТЕ АДРЕСА И ВСТАВЬТЕ В config.h:");
+    Serial.println("\n// Адреса датчиков St02:");
+    Serial.println("#define ST02_SUPPLY_ADDR {0x28, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX}");
+    Serial.println("#define ST02_RETURN_ADDR {0x28, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX}");
+    Serial.println("\n========================================\n");
+  }
+}
 
 void diagnoseOneWire()
 {
@@ -167,8 +232,8 @@ void setup()
   Serial.println("  ESP32 DS18B20 - Ст01");
   Serial.println("========================================");
 
-  // Запускаем диагностику 1-Wire
-  diagnoseOneWire();
+  // Запускаем сканирование всех датчиков
+  scanAllSensors();
 
   Serial.println();
 
@@ -319,6 +384,9 @@ void loop()
 
   // Обработка OTA обновлений
   ArduinoOTA.handle();
+
+  // Запускаем сканирование один раз при загрузке
+  // (уже запущено в setup())
 
   delay(100);
 }
