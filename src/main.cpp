@@ -45,6 +45,10 @@ DeviceAddress st01ReturnAddr = ST01_RETURN_ADDR;
 DeviceAddress st02SupplyAddr = ST02_SUPPLY_ADDR;
 DeviceAddress st02ReturnAddr = ST02_RETURN_ADDR;
 
+// Адреса датчиков St03
+DeviceAddress st03SupplyAddr = ST03_SUPPLY_ADDR;
+DeviceAddress st03ReturnAddr = ST03_RETURN_ADDR;
+
 // ======================== ДИАГНОСТИКА ========================
 
 void scanAllSensors()
@@ -193,6 +197,8 @@ float tempSupply = 0.0;
 float tempReturn = 0.0;
 float tempSupply2 = 0.0;  // St02 Подача
 float tempReturn2 = 0.0;  // St02 Обратка
+float tempSupply3 = 0.0;  // St03 Подача
+float tempReturn3 = 0.0;  // St03 Обратка
 bool wifiConnected = false;
 int currentNetwork = 0;  // Текущая сеть (0, 1 или 2)
 
@@ -215,6 +221,7 @@ unsigned long wifiLedLastUpdate = 0;
 
 void readTemperature();
 void readTemperatureSt02();
+void readTemperatureSt03();
 void sendToSprutHub();
 bool connectMQTT();
 void updateWifiLed(int rssi);
@@ -355,6 +362,7 @@ void loop()
     previousSensingTime = currentTime;
     readTemperature();
     readTemperatureSt02();
+    readTemperatureSt03();
   }
 
   // Отправка данных
@@ -463,9 +471,23 @@ void readTemperature()
   }
 
   if (!supplyFound)
+  {
     Serial.println("⚠️  Ст01 Подача NOT FOUND!");
+    tempSupply = 0.0;  // Сбрасываем если не найден
+  }
   if (!returnFound)
+  {
     Serial.println("⚠️  Ст01 Обратка NOT FOUND!");
+    tempReturn = 0.0;  // Сбрасываем если не найден
+  }
+  
+  // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupply == tempReturn)
+  {
+    Serial.println("⚠️  Ст01: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupply = 0.0;
+    tempReturn = 0.0;
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St02 ========================
@@ -539,9 +561,113 @@ void readTemperatureSt02()
   }
 
   if (!supplyFound)
+  {
     Serial.println("⚠️  Ст02 Подача NOT FOUND!");
+    tempSupply2 = 0.0;  // Сбрасываем если не найден
+  }
   if (!returnFound)
+  {
     Serial.println("⚠️  Ст02 Обратка NOT FOUND!");
+    tempReturn2 = 0.0;  // Сбрасываем если не найден
+  }
+  
+  // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupply2 == tempReturn2)
+  {
+    Serial.println("⚠️  Ст02: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupply2 = 0.0;
+    tempReturn2 = 0.0;
+  }
+}
+
+// ======================== ЧТЕНИЕ ДАТЧИКОВ St03 ========================
+
+void readTemperatureSt03()
+{
+  sensors.requestTemperatures();
+
+  int deviceCount = sensors.getDeviceCount();
+
+  if (deviceCount == 0)
+    return;
+
+  bool supplyFound = false;
+  bool returnFound = false;
+
+  for (int i = 0; i < deviceCount; i++)
+  {
+    float temp = sensors.getTempCByIndex(i);
+    DeviceAddress addr;
+    sensors.getAddress(addr, i);
+
+    // Проверяем, это датчик Ст03 Подача?
+    bool isSupply = true;
+    for (int j = 0; j < 8; j++)
+    {
+      if (addr[j] != st03SupplyAddr[j])
+      {
+        isSupply = false;
+        break;
+      }
+    }
+
+    // Проверяем, это датчик Ст03 Обратка?
+    bool isReturn = true;
+    for (int j = 0; j < 8; j++)
+    {
+      if (addr[j] != st03ReturnAddr[j])
+      {
+        isReturn = false;
+        break;
+      }
+    }
+
+    if (isSupply)
+    {
+      if (temp == DEVICE_DISCONNECTED_C)
+      {
+        Serial.println("🔥 Ст03 Подача: ERROR");
+      }
+      else
+      {
+        tempSupply3 = temp;
+        Serial.printf("🔥 Ст03 Подача: %.2f°C\n", temp);
+        supplyFound = true;
+      }
+    }
+    else if (isReturn)
+    {
+      if (temp == DEVICE_DISCONNECTED_C)
+      {
+        Serial.println("❄️  Ст03 Обратка: ERROR");
+      }
+      else
+      {
+        tempReturn3 = temp;
+        Serial.printf("❄️  Ст03 Обратка: %.2f°C\n", temp);
+        returnFound = true;
+      }
+    }
+  }
+
+  if (!supplyFound)
+  {
+    Serial.println("⚠️  Ст03 Подача NOT FOUND!");
+    tempSupply3 = 0.0;
+  }
+  if (!returnFound)
+  {
+    Serial.println("⚠️  Ст03 Обратка NOT FOUND!");
+    tempReturn3 = 0.0;
+  }
+  
+  // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupply3 == tempReturn3)
+  {
+    Serial.println("⚠️  Ст03: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupply3 = 0.0;
+    tempReturn3 = 0.0;
+  }
 }
 
 void sendToSprutHub()
@@ -553,6 +679,8 @@ void sendToSprutHub()
   char returnStr[10];
   char supplyStr2[10];
   char returnStr2[10];
+  char supplyStr3[10];
+  char returnStr3[10];
 
   // St01
   if (tempSupply > 0.0 && tempReturn > 0.0)
@@ -572,6 +700,16 @@ void sendToSprutHub()
     mqttClient.publish("SprutHub/St02-P/DS18B20/temperature", supplyStr2, true);
     mqttClient.publish("SprutHub/St02-O/DS18B20/temperature", returnStr2, true);
     Serial.printf("MQTT -> St02-P: %s  |  St02-O: %s\n", supplyStr2, returnStr2);
+  }
+
+  // St03
+  if (tempSupply3 > 0.0 && tempReturn3 > 0.0)
+  {
+    sprintf(supplyStr3, "%.2f", tempSupply3);
+    sprintf(returnStr3, "%.2f", tempReturn3);
+    mqttClient.publish("SprutHub/St03-P/DS18B20/temperature", supplyStr3, true);
+    mqttClient.publish("SprutHub/St03-O/DS18B20/temperature", returnStr3, true);
+    Serial.printf("MQTT -> St03-P: %s  |  St03-O: %s\n", supplyStr3, returnStr3);
   }
 }
 
