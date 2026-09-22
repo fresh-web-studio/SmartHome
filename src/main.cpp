@@ -49,6 +49,10 @@ DeviceAddress st02ReturnAddr = ST02_RETURN_ADDR;
 DeviceAddress st03SupplyAddr = ST03_SUPPLY_ADDR;
 DeviceAddress st03ReturnAddr = ST03_RETURN_ADDR;
 
+// Адреса датчиков St04
+DeviceAddress st04SupplyAddr = ST04_SUPPLY_ADDR;
+DeviceAddress st04ReturnAddr = ST04_RETURN_ADDR;
+
 // ======================== ДИАГНОСТИКА ========================
 
 void scanAllSensors()
@@ -199,6 +203,8 @@ float tempSupply2 = 0.0;  // St02 Подача
 float tempReturn2 = 0.0;  // St02 Обратка
 float tempSupply3 = 0.0;  // St03 Подача
 float tempReturn3 = 0.0;  // St03 Обратка
+float tempSupply4 = 0.0;  // St04 Подача
+float tempReturn4 = 0.0;  // St04 Обратка
 bool wifiConnected = false;
 int currentNetwork = 0;  // Текущая сеть (0, 1 или 2)
 
@@ -222,6 +228,7 @@ unsigned long wifiLedLastUpdate = 0;
 void readTemperature();
 void readTemperatureSt02();
 void readTemperatureSt03();
+void readTemperatureSt04();
 void sendToSprutHub();
 bool connectMQTT();
 void updateWifiLed(int rssi);
@@ -363,6 +370,7 @@ void loop()
     readTemperature();
     readTemperatureSt02();
     readTemperatureSt03();
+    readTemperatureSt04();
   }
 
   // Отправка данных
@@ -670,6 +678,96 @@ void readTemperatureSt03()
   }
 }
 
+// ======================== ЧТЕНИЕ ДАТЧИКОВ St04 ========================
+
+void readTemperatureSt04()
+{
+  sensors.requestTemperatures();
+
+  int deviceCount = sensors.getDeviceCount();
+
+  if (deviceCount == 0)
+    return;
+
+  bool supplyFound = false;
+  bool returnFound = false;
+
+  for (int i = 0; i < deviceCount; i++)
+  {
+    float temp = sensors.getTempCByIndex(i);
+    DeviceAddress addr;
+    sensors.getAddress(addr, i);
+
+    // Проверяем, это датчик Ст04 Подача?
+    bool isSupply = true;
+    for (int j = 0; j < 8; j++)
+    {
+      if (addr[j] != st04SupplyAddr[j])
+      {
+        isSupply = false;
+        break;
+      }
+    }
+
+    // Проверяем, это датчик Ст04 Обратка?
+    bool isReturn = true;
+    for (int j = 0; j < 8; j++)
+    {
+      if (addr[j] != st04ReturnAddr[j])
+      {
+        isReturn = false;
+        break;
+      }
+    }
+
+    if (isSupply)
+    {
+      if (temp == DEVICE_DISCONNECTED_C)
+      {
+        Serial.println("🔥 Ст04 Подача: ERROR");
+      }
+      else
+      {
+        tempSupply4 = temp;
+        Serial.printf("🔥 Ст04 Подача: %.2f°C\n", temp);
+        supplyFound = true;
+      }
+    }
+    else if (isReturn)
+    {
+      if (temp == DEVICE_DISCONNECTED_C)
+      {
+        Serial.println("❄️  Ст04 Обратка: ERROR");
+      }
+      else
+      {
+        tempReturn4 = temp;
+        Serial.printf("❄️  Ст04 Обратка: %.2f°C\n", temp);
+        returnFound = true;
+      }
+    }
+  }
+
+  if (!supplyFound)
+  {
+    Serial.println("⚠️  Ст04 Подача NOT FOUND!");
+    tempSupply4 = 0.0;
+  }
+  if (!returnFound)
+  {
+    Serial.println("⚠️  Ст04 Обратка NOT FOUND!");
+    tempReturn4 = 0.0;
+  }
+  
+  // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupply4 == tempReturn4)
+  {
+    Serial.println("⚠️  Ст04: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupply4 = 0.0;
+    tempReturn4 = 0.0;
+  }
+}
+
 void sendToSprutHub()
 {
   if (!wifiConnected)
@@ -681,6 +779,8 @@ void sendToSprutHub()
   char returnStr2[10];
   char supplyStr3[10];
   char returnStr3[10];
+  char supplyStr4[10];
+  char returnStr4[10];
 
   // St01
   if (tempSupply > 0.0 && tempReturn > 0.0)
@@ -710,6 +810,16 @@ void sendToSprutHub()
     mqttClient.publish("SprutHub/St03-P/DS18B20/temperature", supplyStr3, true);
     mqttClient.publish("SprutHub/St03-O/DS18B20/temperature", returnStr3, true);
     Serial.printf("MQTT -> St03-P: %s  |  St03-O: %s\n", supplyStr3, returnStr3);
+  }
+
+  // St04
+  if (tempSupply4 > 0.0 && tempReturn4 > 0.0)
+  {
+    sprintf(supplyStr4, "%.2f", tempSupply4);
+    sprintf(returnStr4, "%.2f", tempReturn4);
+    mqttClient.publish("SprutHub/St04-P/DS18B20/temperature", supplyStr4, true);
+    mqttClient.publish("SprutHub/St04-O/DS18B20/temperature", returnStr4, true);
+    Serial.printf("MQTT -> St04-P: %s  |  St04-O: %s\n", supplyStr4, returnStr4);
   }
 }
 
