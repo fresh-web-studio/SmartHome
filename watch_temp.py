@@ -48,6 +48,8 @@ def on_connect(client, userdata, flags, rc, properties=None):
         client.subscribe("SprutHub/St05-O/DS18B20/temperature")
         client.subscribe("SprutHub/St08-P/DS18B20/temperature")
         client.subscribe("SprutHub/St08-O/DS18B20/temperature")
+        client.subscribe("SprutHub/St07-P/DS18B20/temperature")
+        client.subscribe("SprutHub/St07-O/DS18B20/temperature")
     else:
         print(f"❌ Ошибка подключения: {rc}")
         sys.exit(1)
