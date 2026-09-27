@@ -435,6 +435,8 @@ void loop()
   if (currentTime - previousSensingTime >= SENSING_INTERVAL)
   {
     previousSensingTime = currentTime;
+    sensors1.requestTemperatures();
+    sensors2.requestTemperatures();
     readTemperature();
     readTemperatureSt02();
     readTemperatureSt03();
@@ -481,15 +483,10 @@ void loop()
 
 void readTemperature()
 {
-  sensors1.requestTemperatures();
-
   int deviceCount = sensors1.getDeviceCount();
 
   if (deviceCount == 0)
-  {
-    Serial.println("ERROR: No DS18B20 sensors found!");
     return;
-  }
 
   bool supplyFound = false;
   bool returnFound = false;
@@ -574,7 +571,6 @@ void readTemperature()
 
 void readTemperatureSt02()
 {
-  sensors1.requestTemperatures();
 
   int deviceCount = sensors1.getDeviceCount();
 
@@ -664,7 +660,7 @@ void readTemperatureSt02()
 
 void readTemperatureSt03()
 {
-  sensors1.requestTemperatures();
+  
 
   int deviceCount = sensors1.getDeviceCount();
 
@@ -754,7 +750,7 @@ void readTemperatureSt03()
 
 void readTemperatureSt04()
 {
-  sensors1.requestTemperatures();
+  
 
   int deviceCount = sensors1.getDeviceCount();
 
@@ -844,7 +840,7 @@ void readTemperatureSt04()
 
 void readTemperatureSt05()
 {
-  sensors1.requestTemperatures();
+  
 
   int deviceCount = sensors1.getDeviceCount();
 
@@ -934,7 +930,7 @@ void readTemperatureSt05()
 
 void readTemperatureSt08()
 {
-  sensors2.requestTemperatures();
+  
 
   int deviceCount = sensors2.getDeviceCount();
 
@@ -1024,7 +1020,7 @@ void readTemperatureSt08()
 
 void readTemperatureSt07()
 {
-  sensors2.requestTemperatures();
+  
 
   int deviceCount = sensors2.getDeviceCount();
 
@@ -1114,7 +1110,7 @@ void readTemperatureSt07()
 
 void readTemperatureSt06()
 {
-  sensors2.requestTemperatures();
+  
 
   int deviceCount = sensors2.getDeviceCount();
 
