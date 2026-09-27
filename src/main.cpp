@@ -436,6 +436,7 @@ void loop()
   {
     previousSensingTime = currentTime;
     sensors1.requestTemperatures();
+    delay(500);  // Задержка между запросами к разным шинам
     sensors2.requestTemperatures();
     readTemperature();
     readTemperatureSt02();
