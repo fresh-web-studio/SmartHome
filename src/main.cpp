@@ -16,13 +16,12 @@
 
 // Датчики температуры
 #define ONE_WIRE_BUS_1 4
-// #define ONE_WIRE_BUS_2 16  // D16 для Ст08 — отключено
+#define ONE_WIRE_BUS_2 16  // D16 для Ст06-Ст08
 
 OneWire oneWire1(ONE_WIRE_BUS_1);
-// OneWire oneWire2(ONE_WIRE_BUS_2);
-// DallasTemperature sensors1(&oneWire1);
-// DallasTemperature sensors2(&oneWire2);
-DallasTemperature sensors(&oneWire1);
+OneWire oneWire2(ONE_WIRE_BUS_2);
+DallasTemperature sensors1(&oneWire1);
+DallasTemperature sensors2(&oneWire2);
 
 // Интервал опроса
 #define SENSING_INTERVAL 10000
@@ -55,18 +54,17 @@ DeviceAddress st04ReturnAddr = ST04_RETURN_ADDR;
 DeviceAddress st05SupplyAddr = ST05_SUPPLY_ADDR;
 DeviceAddress st05ReturnAddr = ST05_RETURN_ADDR;
 
-// --- Вторая ветка (GPIO16) — отключена ---
 // Адреса датчиков St08 (GPIO16)
-// DeviceAddress st08SupplyAddr = ST08_SUPPLY_ADDR;
-// DeviceAddress st08ReturnAddr = ST08_RETURN_ADDR;
+DeviceAddress st08SupplyAddr = ST08_SUPPLY_ADDR;
+DeviceAddress st08ReturnAddr = ST08_RETURN_ADDR;
 
 // Адреса датчиков St07 (GPIO16)
-// DeviceAddress st07SupplyAddr = ST07_SUPPLY_ADDR;
-// DeviceAddress st07ReturnAddr = ST07_RETURN_ADDR;
+DeviceAddress st07SupplyAddr = ST07_SUPPLY_ADDR;
+DeviceAddress st07ReturnAddr = ST07_RETURN_ADDR;
 
 // Адреса датчиков St06 (GPIO16)
-// DeviceAddress st06SupplyAddr = ST06_SUPPLY_ADDR;
-// DeviceAddress st06ReturnAddr = ST06_RETURN_ADDR;
+DeviceAddress st06SupplyAddr = ST06_SUPPLY_ADDR;
+DeviceAddress st06ReturnAddr = ST06_RETURN_ADDR;
 
 // ======================== ДИАГНОСТИКА ========================
 
@@ -75,17 +73,17 @@ void scanAllSensors()
   Serial.println("\n========== СКАНИРОВАНИЕ ВСЕХ ДАТЧИКОВ ==========");
   Serial.println("Ищем все датчики DS18B20 на шине 1 (GPIO4)...\n");
   
-  sensors.begin();
-  sensors.setResolution(12);
+  sensors1.begin();
+  sensors1.setResolution(12);
   
-  int deviceCount1 = sensors.getDeviceCount();
+  int deviceCount1 = sensors1.getDeviceCount();
   
   Serial.printf("Шина 1 (GPIO4): %d датчиков\n\n", deviceCount1);
   
   for (int i = 0; i < deviceCount1; i++)
   {
     DeviceAddress addr;
-    sensors.getAddress(addr, i);
+    sensors1.getAddress(addr, i);
     
     Serial.printf("Датчик %d: ", i);
     for (int j = 0; j < 8; j++)
@@ -97,7 +95,7 @@ void scanAllSensors()
         Serial.print(":");
     }
     
-    float temp = sensors.getTempCByIndex(i);
+    float temp = sensors1.getTempCByIndex(i);
     if (temp == DEVICE_DISCONNECTED_C)
     {
       Serial.println("  [НЕ ОТВЕЧАЕТ]");
@@ -111,17 +109,17 @@ void scanAllSensors()
   Serial.println("\n----------------------------------------\n");
   Serial.println("Ищем все датчики DS18B20 на шине 2 (GPIO16)...\n");
   
-  sensors.begin();
-  sensors.setResolution(12);
+  sensors2.begin();
+  sensors2.setResolution(12);
   
-  int deviceCount2 = sensors.getDeviceCount();
+  int deviceCount2 = sensors2.getDeviceCount();
   
   Serial.printf("Шина 2 (GPIO16): %d датчиков\n\n", deviceCount2);
   
   for (int i = 0; i < deviceCount2; i++)
   {
     DeviceAddress addr;
-    sensors.getAddress(addr, i);
+    sensors2.getAddress(addr, i);
     
     Serial.printf("Датчик %d: ", i);
     for (int j = 0; j < 8; j++)
@@ -133,7 +131,7 @@ void scanAllSensors()
         Serial.print(":");
     }
     
-    float temp = sensors.getTempCByIndex(i);
+    float temp = sensors2.getTempCByIndex(i);
     if (temp == DEVICE_DISCONNECTED_C)
     {
       Serial.println("  [НЕ ОТВЕЧАЕТ]");
@@ -192,20 +190,20 @@ void diagnoseOneWire()
   */
   
   // Пробуем найти устройства
-  sensors.begin();
+  sensors1.begin();
   
   Serial.println("\nПоиск датчиков...");
-  int deviceCount1 = sensors.getDeviceCount();
+  int deviceCount1 = sensors1.getDeviceCount();
 
   if (deviceCount1 > 0)
   {
     Serial.printf("\n✅ ШИНА 1: НАЙДЕНО %d ДАТЧИКОВ!\n\n", deviceCount1);
-    sensors.setResolution(10);
+    sensors1.setResolution(10);
     
     for (int i = 0; i < deviceCount1; i++)
     {
       DeviceAddress addr;
-      sensors.getAddress(addr, i);
+      sensors1.getAddress(addr, i);
       Serial.printf("Датчик %d: ", i);
       for (int j = 0; j < 8; j++)
       {
@@ -215,7 +213,7 @@ void diagnoseOneWire()
         if (j < 7)
           Serial.print(":");
       }
-      float temp = sensors.getTempCByIndex(i);
+      float temp = sensors1.getTempCByIndex(i);
       Serial.printf("  Температура: %.2f°C\n", temp);
     }
   }
@@ -229,12 +227,12 @@ void diagnoseOneWire()
   if (deviceCount2 > 0)
   {
     Serial.printf("\n✅ ШИНА 2: НАЙДЕНО %d ДАТЧИКОВ!\n\n", deviceCount2);
-    sensors.setResolution(10);
+    sensors1.setResolution(10);
     
     for (int i = 0; i < deviceCount2; i++)
     {
       DeviceAddress addr;
-      sensors.getAddress(addr, i);
+      sensors1.getAddress(addr, i);
       Serial.printf("Датчик %d: ", i);
       for (int j = 0; j < 8; j++)
       {
@@ -244,7 +242,7 @@ void diagnoseOneWire()
         if (j < 7)
           Serial.print(":");
       }
-      float temp = sensors.getTempCByIndex(i);
+      float temp = sensors1.getTempCByIndex(i);
       Serial.printf("  Температура: %.2f°C\n", temp);
     }
   }
@@ -269,13 +267,12 @@ float tempSupply4 = 0.0;  // St04 Подача
 float tempReturn4 = 0.0;  // St04 Обратка
 float tempSupply5 = 0.0;  // St05 Подача
 float tempReturn5 = 0.0;  // St05 Обратка
-// --- Вторая ветка (GPIO16) — отключена ---
-// float tempSupply8 = 0.0;  // St08 Подача
-// float tempReturn8 = 0.0;  // St08 Обратка
-// float tempSupply7 = 0.0;  // St07 Подача
-// float tempReturn7 = 0.0;  // St07 Обратка
-// float tempSupply6 = 0.0;  // St06 Подача
-// float tempReturn6 = 0.0;  // St06 Обратка
+float tempSupply8 = 0.0;  // St08 Подача
+float tempReturn8 = 0.0;  // St08 Обратка
+float tempSupply7 = 0.0;  // St07 Подача
+float tempReturn7 = 0.0;  // St07 Обратка
+float tempSupply6 = 0.0;  // St06 Подача
+float tempReturn6 = 0.0;  // St06 Обратка
 bool wifiConnected = false;
 int currentNetwork = 0;  // Текущая сеть (0, 1 или 2)
 
@@ -301,10 +298,9 @@ void readTemperatureSt02();
 void readTemperatureSt03();
 void readTemperatureSt04();
 void readTemperatureSt05();
-// --- Вторая ветка (GPIO16) — отключена ---
-// void readTemperatureSt08();
-// void readTemperatureSt07();
-// void readTemperatureSt06();
+void readTemperatureSt08();
+void readTemperatureSt07();
+void readTemperatureSt06();
 void sendToSprutHub();
 bool connectMQTT();
 void updateWifiLed(int rssi);
@@ -443,16 +439,17 @@ void loop()
   if (currentTime - previousSensingTime >= SENSING_INTERVAL)
   {
     previousSensingTime = currentTime;
-    sensors.requestTemperatures();
+    sensors1.requestTemperatures();
+    delay(500);
+    sensors2.requestTemperatures();
     readTemperature();
     readTemperatureSt02();
     readTemperatureSt03();
     readTemperatureSt04();
     readTemperatureSt05();
-    // --- Вторая ветка (GPIO16) — отключена ---
-    // readTemperatureSt08();
-    // readTemperatureSt07();
-    // readTemperatureSt06();
+    readTemperatureSt08();
+    readTemperatureSt07();
+    readTemperatureSt06();
   }
 
   // Отправка данных
@@ -491,7 +488,7 @@ void loop()
 
 void readTemperature()
 {
-  int deviceCount = sensors.getDeviceCount();
+  int deviceCount = sensors1.getDeviceCount();
 
   if (deviceCount == 0)
     return;
@@ -501,9 +498,9 @@ void readTemperature()
 
   for (int i = 0; i < deviceCount; i++)
   {
-    float temp = sensors.getTempCByIndex(i);
+    float temp = sensors1.getTempCByIndex(i);
     DeviceAddress addr;
-    sensors.getAddress(addr, i);
+    sensors1.getAddress(addr, i);
 
     // Проверяем, это датчик Ст01 Подача?
     bool isSupply = true;
@@ -580,7 +577,7 @@ void readTemperature()
 void readTemperatureSt02()
 {
 
-  int deviceCount = sensors.getDeviceCount();
+  int deviceCount = sensors1.getDeviceCount();
 
   if (deviceCount == 0)
     return;
@@ -590,9 +587,9 @@ void readTemperatureSt02()
 
   for (int i = 0; i < deviceCount; i++)
   {
-    float temp = sensors.getTempCByIndex(i);
+    float temp = sensors1.getTempCByIndex(i);
     DeviceAddress addr;
-    sensors.getAddress(addr, i);
+    sensors1.getAddress(addr, i);
 
     // Проверяем, это датчик Ст02 Подача?
     bool isSupply = true;
@@ -670,7 +667,7 @@ void readTemperatureSt03()
 {
   
 
-  int deviceCount = sensors.getDeviceCount();
+  int deviceCount = sensors1.getDeviceCount();
 
   if (deviceCount == 0)
     return;
@@ -680,9 +677,9 @@ void readTemperatureSt03()
 
   for (int i = 0; i < deviceCount; i++)
   {
-    float temp = sensors.getTempCByIndex(i);
+    float temp = sensors1.getTempCByIndex(i);
     DeviceAddress addr;
-    sensors.getAddress(addr, i);
+    sensors1.getAddress(addr, i);
 
     // Проверяем, это датчик Ст03 Подача?
     bool isSupply = true;
@@ -760,7 +757,7 @@ void readTemperatureSt04()
 {
   
 
-  int deviceCount = sensors.getDeviceCount();
+  int deviceCount = sensors1.getDeviceCount();
 
   if (deviceCount == 0)
     return;
@@ -770,9 +767,9 @@ void readTemperatureSt04()
 
   for (int i = 0; i < deviceCount; i++)
   {
-    float temp = sensors.getTempCByIndex(i);
+    float temp = sensors1.getTempCByIndex(i);
     DeviceAddress addr;
-    sensors.getAddress(addr, i);
+    sensors1.getAddress(addr, i);
 
     // Проверяем, это датчик Ст04 Подача?
     bool isSupply = true;
@@ -850,7 +847,7 @@ void readTemperatureSt05()
 {
   
 
-  int deviceCount = sensors.getDeviceCount();
+  int deviceCount = sensors1.getDeviceCount();
 
   if (deviceCount == 0)
     return;
@@ -860,9 +857,9 @@ void readTemperatureSt05()
 
   for (int i = 0; i < deviceCount; i++)
   {
-    float temp = sensors.getTempCByIndex(i);
+    float temp = sensors1.getTempCByIndex(i);
     DeviceAddress addr;
-    sensors.getAddress(addr, i);
+    sensors1.getAddress(addr, i);
 
     // Проверяем, это датчик Ст05 Подача?
     bool isSupply = true;
@@ -935,13 +932,12 @@ void readTemperatureSt05()
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St08 (GPIO16) ========================
-// --- Вторая ветка (GPIO16) — отключена ---
-/*
+
 void readTemperatureSt08()
 {
   
 
-  int deviceCount = sensors.getDeviceCount();
+  int deviceCount = sensors2.getDeviceCount();
 
   if (deviceCount == 0)
     return;
@@ -951,9 +947,9 @@ void readTemperatureSt08()
 
   for (int i = 0; i < deviceCount; i++)
   {
-    float temp = sensors.getTempCByIndex(i);
+    float temp = sensors2.getTempCByIndex(i);
     DeviceAddress addr;
-    sensors.getAddress(addr, i);
+    sensors2.getAddress(addr, i);
 
     // Проверяем, это датчик Ст08 Подача?
     bool isSupply = true;
@@ -1031,7 +1027,7 @@ void readTemperatureSt07()
 {
   
 
-  int deviceCount = sensors.getDeviceCount();
+  int deviceCount = sensors2.getDeviceCount();
 
   if (deviceCount == 0)
     return;
@@ -1041,9 +1037,9 @@ void readTemperatureSt07()
 
   for (int i = 0; i < deviceCount; i++)
   {
-    float temp = sensors.getTempCByIndex(i);
+    float temp = sensors2.getTempCByIndex(i);
     DeviceAddress addr;
-    sensors.getAddress(addr, i);
+    sensors2.getAddress(addr, i);
 
     // Проверяем, это датчик Ст07 Подача?
     bool isSupply = true;
@@ -1119,9 +1115,7 @@ void readTemperatureSt07()
 
 void readTemperatureSt06()
 {
-  
-
-  int deviceCount = sensors.getDeviceCount();
+  int deviceCount = sensors2.getDeviceCount();
 
   if (deviceCount == 0)
     return;
@@ -1131,9 +1125,9 @@ void readTemperatureSt06()
 
   for (int i = 0; i < deviceCount; i++)
   {
-    float temp = sensors.getTempCByIndex(i);
+    float temp = sensors2.getTempCByIndex(i);
     DeviceAddress addr;
-    sensors.getAddress(addr, i);
+    sensors2.getAddress(addr, i);
 
     // Проверяем, это датчик Ст06 Подача?
     bool isSupply = true;
@@ -1204,7 +1198,6 @@ void readTemperatureSt06()
     tempReturn6 = 0.0;
   }
 }
-*/
 
 void sendToSprutHub()
 {
@@ -1221,13 +1214,12 @@ void sendToSprutHub()
   char returnStr4[10];
   char supplyStr5[10];
   char returnStr5[10];
-  // --- Вторая ветка (GPIO16) — отключена ---
-  // char supplyStr8[10];
-  // char returnStr8[10];
-  // char supplyStr7[10];
-  // char returnStr7[10];
-  // char supplyStr6[10];
-  // char returnStr6[10];
+  char supplyStr8[10];
+  char returnStr8[10];
+  char supplyStr7[10];
+  char returnStr7[10];
+  char supplyStr6[10];
+  char returnStr6[10];
 
   // St01
   if (tempSupply > 0.0 && tempReturn > 0.0)
@@ -1279,8 +1271,6 @@ void sendToSprutHub()
     Serial.printf("MQTT -> St05-P: %s  |  St05-O: %s\n", supplyStr5, returnStr5);
   }
 
-  // --- Вторая ветка (GPIO16) — отключена ---
-  /*
   // St08
   if (tempSupply8 > 0.0 && tempReturn8 > 0.0)
   {
@@ -1310,7 +1300,6 @@ void sendToSprutHub()
     mqttClient.publish("SprutHub/St06-O/DS18B20/temperature", returnStr6, true);
     Serial.printf("MQTT -> St06-P: %s  |  St06-O: %s\n", supplyStr6, returnStr6);
   }
-  */
 }
 
 bool connectMQTT()
