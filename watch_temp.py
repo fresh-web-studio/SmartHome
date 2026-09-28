@@ -33,7 +33,7 @@ signal.signal(signal.SIGINT, signal_handler)
 def on_connect(client, userdata, flags, rc, properties=None):
     if rc == 0:
         print("✅ Подключено к MQTT брокеру")
-        print("📡 Подписка на топики: St01-St05")
+        print("📡 Подписка на топики: St01-St08")
         print("🔄 Ожидание данных...\n")
         # Подписываемся на топики
         client.subscribe("SprutHub/St01-P/DS18B20/temperature")
@@ -46,13 +46,12 @@ def on_connect(client, userdata, flags, rc, properties=None):
         client.subscribe("SprutHub/St04-O/DS18B20/temperature")
         client.subscribe("SprutHub/St05-P/DS18B20/temperature")
         client.subscribe("SprutHub/St05-O/DS18B20/temperature")
-        # --- Вторая ветка (GPIO16) — отключена ---
-        # client.subscribe("SprutHub/St08-P/DS18B20/temperature")
-        # client.subscribe("SprutHub/St08-O/DS18B20/temperature")
-        # client.subscribe("SprutHub/St07-P/DS18B20/temperature")
-        # client.subscribe("SprutHub/St07-O/DS18B20/temperature")
-        # client.subscribe("SprutHub/St06-P/DS18B20/temperature")
-        # client.subscribe("SprutHub/St06-O/DS18B20/temperature")
+        client.subscribe("SprutHub/St08-P/DS18B20/temperature")
+        client.subscribe("SprutHub/St08-O/DS18B20/temperature")
+        client.subscribe("SprutHub/St07-P/DS18B20/temperature")
+        client.subscribe("SprutHub/St07-O/DS18B20/temperature")
+        client.subscribe("SprutHub/St06-P/DS18B20/temperature")
+        client.subscribe("SprutHub/St06-O/DS18B20/temperature")
     else:
         print(f"❌ Ошибка подключения: {rc}")
         sys.exit(1)
