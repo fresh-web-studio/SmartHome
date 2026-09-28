@@ -435,13 +435,26 @@ void loop()
     }
   }
 
-  // Чтение температуры
+  // Чтение температуры — без блокирующих delay!
   if (currentTime - previousSensingTime >= SENSING_INTERVAL)
   {
     previousSensingTime = currentTime;
     sensors1.requestTemperatures();
-    delay(500);
+    // Ждём завершения чтения шины 1 (750мс для 12-бит)
+    unsigned long waitStart = millis();
+    while (millis() - waitStart < 750)
+    {
+      mqttClient.loop();  // Поддерживаем MQTT во время ожидания
+    }
+    
     sensors2.requestTemperatures();
+    // Ждём завершения чтения шины 2
+    waitStart = millis();
+    while (millis() - waitStart < 750)
+    {
+      mqttClient.loop();  // Поддерживаем MQTT во время ожидания
+    }
+    
     readTemperature();
     readTemperatureSt02();
     readTemperatureSt03();
@@ -462,6 +475,7 @@ void loop()
   // Поддерживаем MQTT соединение
   if (!mqttClient.connected())
   {
+    Serial.println("⚠️  MQTT disconnected — reconnecting...");
     connectMQTT();
   }
   mqttClient.loop();
