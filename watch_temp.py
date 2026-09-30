@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Мониторинг температуры стояков Ст01-Ст08
+Мониторинг температуры стояков Ст01-Ст09
 Показывает температуру подачи, обратки и разницу в реальном времени
 """
 
@@ -33,7 +33,7 @@ signal.signal(signal.SIGINT, signal_handler)
 def on_connect(client, userdata, flags, rc, properties=None):
     if rc == 0:
         print("✅ Подключено к MQTT брокеру")
-        print("📡 Подписка на топики: St01-St08")
+        print("📡 Подписка на топики: St01-St09")
         print("🔄 Ожидание данных...\n")
         # Подписываемся на топики
         client.subscribe("SprutHub/St01-P/DS18B20/temperature")
@@ -52,6 +52,8 @@ def on_connect(client, userdata, flags, rc, properties=None):
         client.subscribe("SprutHub/St07-O/DS18B20/temperature")
         client.subscribe("SprutHub/St06-P/DS18B20/temperature")
         client.subscribe("SprutHub/St06-O/DS18B20/temperature")
+        client.subscribe("SprutHub/St09-P/DS18B20/temperature")
+        client.subscribe("SprutHub/St09-O/DS18B20/temperature")
     else:
         print(f"❌ Ошибка подключения: {rc}")
         sys.exit(1)
