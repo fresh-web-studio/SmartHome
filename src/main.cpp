@@ -17,11 +17,14 @@
 // Датчики температуры
 #define ONE_WIRE_BUS_1 4
 #define ONE_WIRE_BUS_2 16  // D16 для Ст06-Ст08
+#define ONE_WIRE_BUS_3 17  // D17 для Ст09
 
 OneWire oneWire1(ONE_WIRE_BUS_1);
 OneWire oneWire2(ONE_WIRE_BUS_2);
+OneWire oneWire3(ONE_WIRE_BUS_3);
 DallasTemperature sensors1(&oneWire1);
 DallasTemperature sensors2(&oneWire2);
+DallasTemperature sensors3(&oneWire3);
 
 // Интервал опроса
 #define SENSING_INTERVAL 10000
@@ -65,6 +68,10 @@ DeviceAddress st07ReturnAddr = ST07_RETURN_ADDR;
 // Адреса датчиков St06 (GPIO16)
 DeviceAddress st06SupplyAddr = ST06_SUPPLY_ADDR;
 DeviceAddress st06ReturnAddr = ST06_RETURN_ADDR;
+
+// Адреса датчиков St09 (GPIO17)
+DeviceAddress st09SupplyAddr = ST09_SUPPLY_ADDR;
+DeviceAddress st09ReturnAddr = ST09_RETURN_ADDR;
 
 // ======================== ДИАГНОСТИКА ========================
 
@@ -147,6 +154,49 @@ void scanAllSensors()
   Serial.println("\n// Адреса датчиков St08:");
   Serial.println("#define ST08_SUPPLY_ADDR {0x28, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX}");
   Serial.println("#define ST08_RETURN_ADDR {0x28, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX}");
+  Serial.println("\n========================================\n");
+  
+  // --- Шина 3 (GPIO17) ---
+  Serial.println("\nИщем все датчики DS18B20 на шине 3 (GPIO17)...\n");
+  
+  sensors3.begin();
+  sensors3.setResolution(12);
+  
+  int deviceCount3 = sensors3.getDeviceCount();
+  
+  Serial.printf("Шина 3 (GPIO17): %d датчиков\n\n", deviceCount3);
+  
+  for (int i = 0; i < deviceCount3; i++)
+  {
+    DeviceAddress addr;
+    sensors3.getAddress(addr, i);
+    
+    Serial.printf("Датчик %d: ", i);
+    for (int j = 0; j < 8; j++)
+    {
+      if (addr[j] < 16)
+        Serial.print("0");
+      Serial.print(addr[j], HEX);
+      if (j < 7)
+        Serial.print(":");
+    }
+    
+    float temp = sensors3.getTempCByIndex(i);
+    if (temp == DEVICE_DISCONNECTED_C)
+    {
+      Serial.println("  [НЕ ОТВЕЧАЕТ]");
+    }
+    else
+    {
+      Serial.printf("  Температура: %.2f°C", temp);
+    }
+  }
+  
+  Serial.println("\n========================================");
+  Serial.println("\n📋 АДРЕСА ДЛЯ ШИНЫ 3 (GPIO17):");
+  Serial.println("\n// Адреса датчиков St09:");
+  Serial.println("#define ST09_SUPPLY_ADDR {0x28, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX}");
+  Serial.println("#define ST09_RETURN_ADDR {0x28, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX}");
   Serial.println("\n========================================\n");
 }
 
@@ -273,6 +323,8 @@ float tempSupply7 = 0.0;  // St07 Подача
 float tempReturn7 = 0.0;  // St07 Обратка
 float tempSupply6 = 0.0;  // St06 Подача
 float tempReturn6 = 0.0;  // St06 Обратка
+float tempSupply9 = 0.0;  // St09 Подача
+float tempReturn9 = 0.0;  // St09 Обратка
 bool wifiConnected = false;
 int currentNetwork = 0;  // Текущая сеть (0, 1 или 2)
 
@@ -301,6 +353,7 @@ void readTemperatureSt05();
 void readTemperatureSt08();
 void readTemperatureSt07();
 void readTemperatureSt06();
+void readTemperatureSt09();
 void sendToSprutHub();
 bool connectMQTT();
 void updateWifiLed(int rssi);
@@ -463,6 +516,15 @@ void loop()
     readTemperatureSt08();
     readTemperatureSt07();
     readTemperatureSt06();
+    
+    // Чтение шины 3 (GPIO17) для St09
+    sensors3.requestTemperatures();
+    waitStart = millis();
+    while (millis() - waitStart < 750)
+    {
+      mqttClient.loop();  // Поддерживаем MQTT во время ожидания
+    }
+    readTemperatureSt09();
   }
 
   // Отправка данных
@@ -1213,6 +1275,94 @@ void readTemperatureSt06()
   }
 }
 
+// ======================== ЧТЕНИЕ ДАТЧИКОВ St09 (GPIO17) ========================
+
+void readTemperatureSt09()
+{
+  int deviceCount = sensors3.getDeviceCount();
+
+  if (deviceCount == 0)
+    return;
+
+  bool supplyFound = false;
+  bool returnFound = false;
+
+  for (int i = 0; i < deviceCount; i++)
+  {
+    float temp = sensors3.getTempCByIndex(i);
+    DeviceAddress addr;
+    sensors3.getAddress(addr, i);
+
+    // Проверяем, это датчик Ст09 Подача?
+    bool isSupply = true;
+    for (int j = 0; j < 8; j++)
+    {
+      if (addr[j] != st09SupplyAddr[j])
+      {
+        isSupply = false;
+        break;
+      }
+    }
+
+    // Проверяем, это датчик Ст09 Обратка?
+    bool isReturn = true;
+    for (int j = 0; j < 8; j++)
+    {
+      if (addr[j] != st09ReturnAddr[j])
+      {
+        isReturn = false;
+        break;
+      }
+    }
+
+    if (isSupply)
+    {
+      if (temp == DEVICE_DISCONNECTED_C)
+      {
+        Serial.println("🔥 Ст09 Подача: ERROR");
+      }
+      else
+      {
+        tempSupply9 = temp;
+        Serial.printf("🔥 Ст09 Подача: %.2f°C\n", temp);
+        supplyFound = true;
+      }
+    }
+    else if (isReturn)
+    {
+      if (temp == DEVICE_DISCONNECTED_C)
+      {
+        Serial.println("❄️  Ст09 Обратка: ERROR");
+      }
+      else
+      {
+        tempReturn9 = temp;
+        Serial.printf("❄️  Ст09 Обратка: %.2f°C\n", temp);
+        returnFound = true;
+      }
+    }
+  }
+
+  if (!supplyFound)
+  {
+    Serial.println("⚠️  Ст09 Подача NOT FOUND!");
+    tempSupply9 = 0.0;
+  }
+  if (!returnFound)
+  {
+    Serial.println("⚠️  Ст09 Обратка NOT FOUND!");
+    tempReturn9 = 0.0;
+  }
+  
+  // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupply9 == tempReturn9)
+  {
+    Serial.println("⚠️  Ст09: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupply9 = 0.0;
+    tempReturn9 = 0.0;
+  }
+}
+
 void sendToSprutHub()
 {
   if (!wifiConnected)
@@ -1234,6 +1384,8 @@ void sendToSprutHub()
   char returnStr7[10];
   char supplyStr6[10];
   char returnStr6[10];
+  char supplyStr9[10];
+  char returnStr9[10];
 
   // St01
   if (tempSupply > 0.0 && tempReturn > 0.0)
@@ -1313,6 +1465,16 @@ void sendToSprutHub()
     mqttClient.publish("SprutHub/St06-P/DS18B20/temperature", supplyStr6, true);
     mqttClient.publish("SprutHub/St06-O/DS18B20/temperature", returnStr6, true);
     Serial.printf("MQTT -> St06-P: %s  |  St06-O: %s\n", supplyStr6, returnStr6);
+  }
+
+  // St09 (Ветка 3, GPIO17)
+  if (tempSupply9 > 0.0 && tempReturn9 > 0.0)
+  {
+    sprintf(supplyStr9, "%.2f", tempSupply9);
+    sprintf(returnStr9, "%.2f", tempReturn9);
+    mqttClient.publish("SprutHub/St09-P/DS18B20/temperature", supplyStr9, true);
+    mqttClient.publish("SprutHub/St09-O/DS18B20/temperature", returnStr9, true);
+    Serial.printf("MQTT -> St09-P: %s  |  St09-O: %s\n", supplyStr9, returnStr9);
   }
 }
 
