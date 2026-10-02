@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Мониторинг температуры стояков Ст01-Ст13
+Мониторинг температуры стояков Ст01-Ст17
 Показывает температуру подачи, обратки и разницу в реальном времени
 """
 
@@ -62,6 +62,8 @@ def on_connect(client, userdata, flags, rc, properties=None):
         client.subscribe("SprutHub/St12-O/DS18B20/temperature")
         client.subscribe("SprutHub/St13-P/DS18B20/temperature")
         client.subscribe("SprutHub/St13-O/DS18B20/temperature")
+        client.subscribe("SprutHub/St17-P/DS18B20/temperature")
+        client.subscribe("SprutHub/St17-O/DS18B20/temperature")
     else:
         print(f"❌ Ошибка подключения: {rc}")
         sys.exit(1)
