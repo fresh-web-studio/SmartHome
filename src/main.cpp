@@ -81,6 +81,10 @@ DeviceAddress st10ReturnAddr = ST10_RETURN_ADDR;
 DeviceAddress st11SupplyAddr = ST11_SUPPLY_ADDR;
 DeviceAddress st11ReturnAddr = ST11_RETURN_ADDR;
 
+// Адреса датчиков St12 (GPIO17)
+DeviceAddress st12SupplyAddr = ST12_SUPPLY_ADDR;
+DeviceAddress st12ReturnAddr = ST12_RETURN_ADDR;
+
 // ======================== ДИАГНОСТИКА ========================
 
 void scanAllSensors()
@@ -211,6 +215,9 @@ void scanAllSensors()
   Serial.println("\n// Адреса датчиков St11:");
   Serial.println("#define ST11_SUPPLY_ADDR {0x28, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX}");
   Serial.println("#define ST11_RETURN_ADDR {0x28, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX}");
+  Serial.println("\n// Адреса датчиков St12:");
+  Serial.println("#define ST12_SUPPLY_ADDR {0x28, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX}");
+  Serial.println("#define ST12_RETURN_ADDR {0x28, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX}");
   Serial.println("\n========================================\n");
 }
 
@@ -343,6 +350,8 @@ float tempSupply10 = 0.0;  // St10 Подача
 float tempReturn10 = 0.0;  // St10 Обратка
 float tempSupply11 = 0.0;  // St11 Подача
 float tempReturn11 = 0.0;  // St11 Обратка
+float tempSupply12 = 0.0;  // St12 Подача
+float tempReturn12 = 0.0;  // St12 Обратка
 bool wifiConnected = false;
 int currentNetwork = 0;  // Текущая сеть (0, 1 или 2)
 
@@ -374,6 +383,7 @@ void readTemperatureSt06();
 void readTemperatureSt09();
 void readTemperatureSt10();
 void readTemperatureSt11();
+void readTemperatureSt12();
 void sendToSprutHub();
 bool connectMQTT();
 void updateWifiLed(int rssi);
@@ -537,7 +547,7 @@ void loop()
     readTemperatureSt07();
     readTemperatureSt06();
     
-    // Чтение шины 3 (GPIO17) для St09, St10 и St11
+    // Чтение шины 3 (GPIO17) для St09, St10, St11 и St12
     sensors3.requestTemperatures();
     waitStart = millis();
     while (millis() - waitStart < 750)
@@ -547,6 +557,7 @@ void loop()
     readTemperatureSt09();
     readTemperatureSt10();
     readTemperatureSt11();
+    readTemperatureSt12();
   }
 
   // Отправка данных
@@ -1561,6 +1572,94 @@ void readTemperatureSt11()
   }
 }
 
+// ======================== ЧТЕНИЕ ДАТЧИКОВ St12 (GPIO17) ========================
+
+void readTemperatureSt12()
+{
+  int deviceCount = sensors3.getDeviceCount();
+
+  if (deviceCount == 0)
+    return;
+
+  bool supplyFound = false;
+  bool returnFound = false;
+
+  for (int i = 0; i < deviceCount; i++)
+  {
+    float temp = sensors3.getTempCByIndex(i);
+    DeviceAddress addr;
+    sensors3.getAddress(addr, i);
+
+    // Проверяем, это датчик Ст12 Подача?
+    bool isSupply = true;
+    for (int j = 0; j < 8; j++)
+    {
+      if (addr[j] != st12SupplyAddr[j])
+      {
+        isSupply = false;
+        break;
+      }
+    }
+
+    // Проверяем, это датчик Ст12 Обратка?
+    bool isReturn = true;
+    for (int j = 0; j < 8; j++)
+    {
+      if (addr[j] != st12ReturnAddr[j])
+      {
+        isReturn = false;
+        break;
+      }
+    }
+
+    if (isSupply)
+    {
+      if (temp == DEVICE_DISCONNECTED_C)
+      {
+        Serial.println("🔥 Ст12 Подача: ERROR");
+      }
+      else
+      {
+        tempSupply12 = temp;
+        Serial.printf("🔥 Ст12 Подача: %.2f°C\n", temp);
+        supplyFound = true;
+      }
+    }
+    else if (isReturn)
+    {
+      if (temp == DEVICE_DISCONNECTED_C)
+      {
+        Serial.println("❄️  Ст12 Обратка: ERROR");
+      }
+      else
+      {
+        tempReturn12 = temp;
+        Serial.printf("❄️  Ст12 Обратка: %.2f°C\n", temp);
+        returnFound = true;
+      }
+    }
+  }
+
+  if (!supplyFound)
+  {
+    Serial.println("⚠️  Ст12 Подача NOT FOUND!");
+    tempSupply12 = 0.0;
+  }
+  if (!returnFound)
+  {
+    Serial.println("⚠️  Ст12 Обратка NOT FOUND!");
+    tempReturn12 = 0.0;
+  }
+  
+  // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupply12 == tempReturn12)
+  {
+    Serial.println("⚠️  Ст12: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupply12 = 0.0;
+    tempReturn12 = 0.0;
+  }
+}
+
 void sendToSprutHub()
 {
   if (!wifiConnected)
@@ -1588,6 +1687,8 @@ void sendToSprutHub()
   char returnStr10[10];
   char supplyStr11[10];
   char returnStr11[10];
+  char supplyStr12[10];
+  char returnStr12[10];
 
   // St01
   if (tempSupply > 0.0 && tempReturn > 0.0)
@@ -1697,6 +1798,16 @@ void sendToSprutHub()
     mqttClient.publish("SprutHub/St11-P/DS18B20/temperature", supplyStr11, true);
     mqttClient.publish("SprutHub/St11-O/DS18B20/temperature", returnStr11, true);
     Serial.printf("MQTT -> St11-P: %s  |  St11-O: %s\n", supplyStr11, returnStr11);
+  }
+
+  // St12 (Ветка 3, GPIO17)
+  if (tempSupply12 > 0.0 && tempReturn12 > 0.0)
+  {
+    sprintf(supplyStr12, "%.2f", tempSupply12);
+    sprintf(returnStr12, "%.2f", tempReturn12);
+    mqttClient.publish("SprutHub/St12-P/DS18B20/temperature", supplyStr12, true);
+    mqttClient.publish("SprutHub/St12-O/DS18B20/temperature", returnStr12, true);
+    Serial.printf("MQTT -> St12-P: %s  |  St12-O: %s\n", supplyStr12, returnStr12);
   }
 }
 
