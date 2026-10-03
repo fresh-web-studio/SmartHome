@@ -33,7 +33,7 @@ signal.signal(signal.SIGINT, signal_handler)
 def on_connect(client, userdata, flags, rc, properties=None):
     if rc == 0:
         print("✅ Подключено к MQTT брокеру")
-        print("📡 Подписка на топики: St01-St09")
+        print("📡 Подписка на топики: St01-St17, TU, Outdoors")
         print("🔄 Ожидание данных...\n")
         # Подписываемся на топики
         client.subscribe("SprutHub/St01-P/DS18B20/temperature")
@@ -152,6 +152,10 @@ try:
                 o_temp = temps["O"]
                 diff = p_temp - o_temp
                 print(f"[{data_count:04d}] {now}  {sid}: {p_temp:6.2f}°C/{o_temp:6.2f}°C (Δ{diff:5.2f}°C)", flush=True)
+                has_data = True
+            elif "P" in temps:
+                # Для датчиков без Обратки (Outdoors)
+                print(f"[{data_count:04d}] {now}  {sid}: {temps['P']:6.2f}°C (только Подача)", flush=True)
                 has_data = True
         
         time.sleep(OUTPUT_INTERVAL)
