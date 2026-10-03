@@ -72,6 +72,8 @@ def on_connect(client, userdata, flags, rc, properties=None):
         client.subscribe("SprutHub/TU-O/DS18B20/temperature")
         client.subscribe("SprutHub/St14-P/DS18B20/temperature")
         client.subscribe("SprutHub/St14-O/DS18B20/temperature")
+        client.subscribe("SprutHub/Outdoors-P/DS18B20/temperature")
+        client.subscribe("SprutHub/Outdoors-O/DS18B20/temperature")
     else:
         print(f"❌ Ошибка подключения: {rc}")
         sys.exit(1)
