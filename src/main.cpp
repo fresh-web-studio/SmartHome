@@ -112,6 +112,10 @@ DeviceAddress tuReturnAddr = TU_RETURN_ADDR;
 DeviceAddress st14SupplyAddr = ST14_SUPPLY_ADDR;
 DeviceAddress st14ReturnAddr = ST14_RETURN_ADDR;
 
+// Адреса датчиков Outdoors (GPIO4)
+DeviceAddress outdoorsSupplyAddr = OUTDOORS_SUPPLY_ADDR;
+DeviceAddress outdoorsReturnAddr = OUTDOORS_RETURN_ADDR;
+
 // ======================== ДИАГНОСТИКА ========================
 
 void scanAllSensors()
@@ -302,6 +306,9 @@ void scanAllSensors()
   Serial.println("\n// Адреса датчиков St14:");
   Serial.println("#define ST14_SUPPLY_ADDR {0x28, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX}");
   Serial.println("#define ST14_RETURN_ADDR {0x28, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX}");
+  Serial.println("\n// Адреса датчиков Outdoors (Температура улицы, GPIO16):");
+  Serial.println("#define OUTDOORS_SUPPLY_ADDR {0x28, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX}");
+  Serial.println("#define OUTDOORS_RETURN_ADDR {0x28, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX}");
   Serial.println("\n========================================\n");
 }
 
@@ -448,6 +455,8 @@ float tempSupplyTU = 0.0;  // TU Подача
 float tempReturnTU = 0.0;  // TU Обратка
 float tempSupply14 = 0.0;  // St14 Подача
 float tempReturn14 = 0.0;  // St14 Обратка
+float tempSupplyOutdoors = 0.0;  // Outdoors Подача
+float tempReturnOutdoors = 0.0;  // Outdoors Обратка
 bool wifiConnected = false;
 int currentNetwork = 0;  // Текущая сеть (0, 1 или 2)
 
@@ -486,6 +495,7 @@ void readTemperatureSt16();
 void readTemperatureSt15();
 void readTemperatureTU();
 void readTemperatureSt14();
+void readTemperatureOutdoors();
 void sendToSprutHub();
 bool connectMQTT();
 void updateWifiLed(int rssi);
@@ -648,6 +658,7 @@ void loop()
     readTemperatureSt08();
     readTemperatureSt07();
     readTemperatureSt06();
+    readTemperatureOutdoors();
     
     // Чтение шины 3 (GPIO17) для St09, St10, St11, St12 и St13
     sensors3.requestTemperatures();
@@ -2304,6 +2315,94 @@ void readTemperatureSt14()
   }
 }
 
+// ======================== ЧТЕНИЕ ДАТЧИКОВ Outdoors (GPIO4) ========================
+
+void readTemperatureOutdoors()
+{
+  int deviceCount = sensors1.getDeviceCount();
+
+  if (deviceCount == 0)
+    return;
+
+  bool supplyFound = false;
+  bool returnFound = false;
+
+  for (int i = 0; i < deviceCount; i++)
+  {
+    float temp = sensors1.getTempCByIndex(i);
+    DeviceAddress addr;
+    sensors1.getAddress(addr, i);
+
+    // Проверяем, это датчик Outdoors Подача?
+    bool isSupply = true;
+    for (int j = 0; j < 8; j++)
+    {
+      if (addr[j] != outdoorsSupplyAddr[j])
+      {
+        isSupply = false;
+        break;
+      }
+    }
+
+    // Проверяем, это датчик Outdoors Обратка?
+    bool isReturn = true;
+    for (int j = 0; j < 8; j++)
+    {
+      if (addr[j] != outdoorsReturnAddr[j])
+      {
+        isReturn = false;
+        break;
+      }
+    }
+
+    if (isSupply)
+    {
+      if (temp == DEVICE_DISCONNECTED_C)
+      {
+        Serial.println("🌡️  Outdoors Подача: ERROR");
+      }
+      else
+      {
+        tempSupplyOutdoors = temp;
+        Serial.printf("🌡️  Outdoors Подача: %.2f°C\n", temp);
+        supplyFound = true;
+      }
+    }
+    else if (isReturn)
+    {
+      if (temp == DEVICE_DISCONNECTED_C)
+      {
+        Serial.println("❄️  Outdoors Обратка: ERROR");
+      }
+      else
+      {
+        tempReturnOutdoors = temp;
+        Serial.printf("❄️  Outdoors Обратка: %.2f°C\n", temp);
+        returnFound = true;
+      }
+    }
+  }
+
+  if (!supplyFound)
+  {
+    Serial.println("⚠️  Outdoors Подача NOT FOUND!");
+    tempSupplyOutdoors = 0.0;
+  }
+  if (!returnFound)
+  {
+    Serial.println("⚠️  Outdoors Обратка NOT FOUND!");
+    tempReturnOutdoors = 0.0;
+  }
+  
+  // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupplyOutdoors == tempReturnOutdoors)
+  {
+    Serial.println("⚠️  Outdoors: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupplyOutdoors = 0.0;
+    tempReturnOutdoors = 0.0;
+  }
+}
+
 void sendToSprutHub()
 {
   if (!wifiConnected)
@@ -2345,6 +2444,8 @@ void sendToSprutHub()
   char returnStrTU[10];
   char supplyStr14[10];
   char returnStr14[10];
+  char supplyStrOutdoors[10];
+  char returnStrOutdoors[10];
 
   // St01
   if (tempSupply > 0.0 && tempReturn > 0.0)
@@ -2524,6 +2625,16 @@ void sendToSprutHub()
     mqttClient.publish("SprutHub/St14-P/DS18B20/temperature", supplyStr14, true);
     mqttClient.publish("SprutHub/St14-O/DS18B20/temperature", returnStr14, true);
     Serial.printf("MQTT -> St14-P: %s  |  St14-O: %s\n", supplyStr14, returnStr14);
+  }
+
+  // Outdoors (Ветка 1, GPIO4)
+  if (tempSupplyOutdoors > 0.0 && tempReturnOutdoors > 0.0)
+  {
+    sprintf(supplyStrOutdoors, "%.2f", tempSupplyOutdoors);
+    sprintf(returnStrOutdoors, "%.2f", tempReturnOutdoors);
+    mqttClient.publish("SprutHub/Outdoors-P/DS18B20/temperature", supplyStrOutdoors, true);
+    mqttClient.publish("SprutHub/Outdoors-O/DS18B20/temperature", returnStrOutdoors, true);
+    Serial.printf("MQTT -> Outdoors-P: %s  |  Outdoors-O: %s\n", supplyStrOutdoors, returnStrOutdoors);
   }
 }
 
