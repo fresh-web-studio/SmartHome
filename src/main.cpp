@@ -2627,14 +2627,12 @@ void sendToSprutHub()
     Serial.printf("MQTT -> St14-P: %s  |  St14-O: %s\n", supplyStr14, returnStr14);
   }
 
-  // Outdoors (Ветка 1, GPIO4)
-  if (tempSupplyOutdoors > 0.0 && tempReturnOutdoors > 0.0)
+  // Outdoors (Ветка 1, GPIO4) — только Подача (нет Обратки)
+  if (tempSupplyOutdoors > 0.0)
   {
     sprintf(supplyStrOutdoors, "%.2f", tempSupplyOutdoors);
-    sprintf(returnStrOutdoors, "%.2f", tempReturnOutdoors);
     mqttClient.publish("SprutHub/Outdoors-P/DS18B20/temperature", supplyStrOutdoors, true);
-    mqttClient.publish("SprutHub/Outdoors-O/DS18B20/temperature", returnStrOutdoors, true);
-    Serial.printf("MQTT -> Outdoors-P: %s  |  Outdoors-O: %s\n", supplyStrOutdoors, returnStrOutdoors);
+    Serial.printf("MQTT -> Outdoors-P: %s\n", supplyStrOutdoors);
   }
 }
 
