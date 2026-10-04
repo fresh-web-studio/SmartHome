@@ -40,9 +40,10 @@ DallasTemperature sensors4(&oneWire4);
 
 // Ethernet W5500 (HSPI: GPIO14=SCLK, GPIO13=MOSI, GPIO12=MISO, GPIO5=CS)
 #define ETHERNET_CS_PIN 5
-// WiFi клиент для MQTT
-WiFiClient espClient;
-PubSubClient mqttClient(espClient);
+
+// Клиент для MQTT — используем Ethernet как основной
+EthernetClient ethClient;
+PubSubClient mqttClient(ethClient);
 
 // Адреса датчиков St01
 DeviceAddress st01SupplyAddr = ST01_SUPPLY_ADDR;
@@ -522,6 +523,78 @@ void setup()
   scanAllSensors();
   delay(1000);  // Ждём завершения сканирования
 
+  // ==================== ИНИЦИАЛИЗАЦИЯ ETHERNET (W5500) ===
+  Serial.println("\nИнициализация W5500 Ethernet...");
+  Ethernet.init(ETHERNET_CS_PIN);
+  delay(500);
+  
+  // Статический IP — тот же что был по DHCP
+  byte mac[6] = {0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x85};
+  IPAddress ip(192, 168, 1, 185);
+  IPAddress gateway(192, 168, 1, 1);
+  IPAddress subnet(255, 255, 255, 0);
+  
+  Serial.println("  Запуск Ethernet.begin()...");
+  Ethernet.begin(mac, ip, gateway, gateway, subnet);
+  
+  // Ждём подключения (timeout 10 сек)
+  unsigned long ethStart = millis();
+  bool ethReady = false;
+  while (millis() - ethStart < 10000)
+  {
+    if (Ethernet.localIP()[0] != 0)
+    {
+      ethReady = true;
+      break;
+    }
+    delay(500);
+    Serial.print(".");
+  }
+  
+  if (ethReady)
+  {
+    ethConnected = true;
+    Serial.println("\n✅ Ethernet подключено!");
+    Serial.printf("  IP: %s\n", Ethernet.localIP().toString().c_str());
+    byte macRead[6];
+    Ethernet.macAddress(macRead);
+    Serial.printf("  MAC: %02X:%02X:%02X:%02X:%02X:%02X\n", 
+                  macRead[0], macRead[1], macRead[2], macRead[3], macRead[4], macRead[5]);
+  }
+  else
+  {
+    Serial.println("\n❌ Ethernet не подключён! Переход на WiFi...");
+    ethConnected = false;
+  }
+
+  // ==================== РЕЗЕРВНОЕ ПОДКЛЮЧЕНИЕ К WI-FI ======
+  if (!ethConnected)
+  {
+    Serial.println("\nПодключение к Wi-Fi (резерв)...");
+    WiFi.disconnect();
+    delay(500);
+    WiFi.begin(WIFI_SSID_1, WIFI_PASSWORD_1);
+    
+    unsigned long wifiStart = millis();
+    while (WiFi.status() != WL_CONNECTED && (millis() - wifiStart < 8000))
+    {
+      delay(500);
+      Serial.print(".");
+    }
+    
+    if (WiFi.status() == WL_CONNECTED)
+    {
+      wifiConnected = true;
+      Serial.println("\n✅ WiFi подключён (резерв)!");
+      Serial.printf("  IP: %s\n", WiFi.localIP().toString().c_str());
+      Serial.printf("  RSSI: %d dBm\n", WiFi.RSSI());
+    }
+    else
+    {
+      Serial.println("\n❌ WiFi не подключён!");
+    }
+  }
+
   // Инициализация встроенного LED для индикации
   pinMode(LED_BUILTIN_PIN, OUTPUT);
   digitalWrite(LED_BUILTIN_PIN, LOW);
@@ -542,34 +615,73 @@ void loop()
 {
   unsigned long currentTime = millis();
 
-  // ==================== ПЕРЕПОДКЛЮЧЕНИЕ К WI-FI ====================
-  if (!WiFi.isConnected())
+  // ==================== ПЕРЕПЫТКА ПОДКЛЮЧЕНИЯ ================
+  // Сначала пробуем Ethernet, если не работает — переключаемся на WiFi
+  if (!ethConnected)
   {
-    Serial.println("\n⚠️  Wi-Fi отключён! Переподключение...");
-    wifiConnected = false;
-
-    WiFi.disconnect();
-    delay(1000);
-    WiFi.begin(WIFI_SSID_1, WIFI_PASSWORD_1);
-
-    unsigned long start = millis();
-    while (WiFi.status() != WL_CONNECTED && (millis() - start < 8000))
+    Serial.println("\n⚠️  Ethernet отключён! Переподключение...");
+    
+    // Перезапускаем Ethernet
+    byte mac[6] = {0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x85};
+    IPAddress ip(192, 168, 1, 185);
+    IPAddress gateway(192, 168, 1, 1);
+    IPAddress subnet(255, 255, 255, 0);
+    
+    Ethernet.begin(mac, ip, gateway, gateway, subnet);
+    
+    unsigned long ethStart = millis();
+    bool ethRetry = false;
+    while (millis() - ethStart < 10000)
     {
+      if (Ethernet.localIP()[0] != 0)
+      {
+        ethRetry = true;
+        break;
+      }
       delay(500);
       Serial.print(".");
     }
-
-    if (WiFi.status() == WL_CONNECTED)
+    
+    if (ethRetry)
     {
-      wifiConnected = true;
-      Serial.println("\n  ✅ Переподключено!");
-      Serial.printf("  IP: %s\n", WiFi.localIP().toString().c_str());
-      Serial.printf("  RSSI: %d dBm\n", WiFi.RSSI());
+      ethConnected = true;
+      Serial.println("\n  ✅ Ethernet переподключён!");
+      Serial.printf("  IP: %s\n", Ethernet.localIP().toString().c_str());
     }
     else
     {
-      Serial.println("\n  ❌ Не удалось переподключиться!");
+      Serial.println("\n  ❌ Ethernet не подключён! Пробуем WiFi...");
+      // Переходим на WiFi как резерв
+      WiFi.disconnect();
+      delay(1000);
+      WiFi.begin(WIFI_SSID_1, WIFI_PASSWORD_1);
+      
+      unsigned long wifiStart = millis();
+      while (WiFi.status() != WL_CONNECTED && (millis() - wifiStart < 8000))
+      {
+        delay(500);
+        Serial.print(".");
+      }
+      
+      if (WiFi.status() == WL_CONNECTED)
+      {
+        wifiConnected = true;
+        ethConnected = false;
+        Serial.println("\n  ✅ WiFi подключён (резерв)!");
+        Serial.printf("  IP: %s\n", WiFi.localIP().toString().c_str());
+      }
+      else
+      {
+        Serial.println("\n  ❌ WiFi не подключён!");
+      }
     }
+  }
+  else if (!WiFi.isConnected() && wifiConnected)
+  {
+    // Если Ethernet работает, отключаем WiFi для экономии ресурсов
+    WiFi.disconnect();
+    wifiConnected = false;
+    Serial.println("\n  ℹ️  WiFi отключён (Ethernet работает)");
   }
 
   // Чтение температуры — без блокирующих delay!
@@ -644,23 +756,31 @@ void loop()
   }
   mqttClient.loop();
 
-  // Индикация Wi-Fi
-  if (wifiConnected)
+  // Индикация статуса сети
+  if (ethConnected)
   {
-    int wifiRSSI = WiFi.RSSI();
-    updateWifiLed(wifiRSSI);
+    // Ethernet работает — LED горит постоянно
+    digitalWrite(LED_BUILTIN_PIN, HIGH);
+  }
+  else if (wifiConnected)
+  {
+    // WiFi работает (резерв) — LED мигает медленно
+    static unsigned long ledBlinkLast = 0;
+    if (millis() - ledBlinkLast > 2000)
+    {
+      ledBlinkLast = millis();
+      digitalWrite(LED_BUILTIN_PIN, !digitalRead(LED_BUILTIN_PIN));
+    }
   }
   else
   {
-    digitalWrite(LED_BUILTIN_PIN, LOW);
-  }
-
-  // Индикация работы: мигание каждые 2 секунды
-  static unsigned long ledBlinkLast = 0;
-  if (millis() - ledBlinkLast > 2000)
-  {
-    ledBlinkLast = millis();
-    digitalWrite(LED_BUILTIN_PIN, !digitalRead(LED_BUILTIN_PIN));
+    // Нет подключения — LED мигает быстро
+    static unsigned long ledBlinkLast = 0;
+    if (millis() - ledBlinkLast > 200)
+    {
+      ledBlinkLast = millis();
+      digitalWrite(LED_BUILTIN_PIN, !digitalRead(LED_BUILTIN_PIN));
+    }
   }
 
   // Обработка OTA обновлений
