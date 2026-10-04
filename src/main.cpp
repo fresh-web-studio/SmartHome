@@ -40,8 +40,9 @@ DallasTemperature sensors4(&oneWire4);
 
 // Ethernet W5500 (HSPI: GPIO14=SCLK, GPIO13=MOSI, GPIO12=MISO, GPIO5=CS)
 #define ETHERNET_CS_PIN 5
-EthernetClient ethClient;
-PubSubClient mqttClient(ethClient);
+// WiFi клиент для MQTT
+WiFiClient espClient;
+PubSubClient mqttClient(espClient);
 
 // Адреса датчиков St01
 DeviceAddress st01SupplyAddr = ST01_SUPPLY_ADDR;
@@ -519,43 +520,7 @@ void setup()
 
   // Запускаем сканирование всех датчиков
   scanAllSensors();
-
-  Serial.println();
-
-  // ==================== ПОДКЛЮЧЕНИЕ К ETHERNET (W5500) ====================
-  Serial.println("Инициализация W5500 Ethernet...");
-  
-  // W5500 на HSPI: GPIO14=SCLK, GPIO13=MOSI, GPIO12=MISO, GPIO5=CS
-  Ethernet.init(ETHERNET_CS_PIN);
-  
-  // MAC адрес (уникальный для каждого устройства)
-  byte mac[6] = {0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x85};
-  
-  // Статический IP
-  IPAddress ip(192, 168, 1, 185);
-  IPAddress gateway(192, 168, 1, 1);
-  IPAddress subnet(255, 255, 255, 0);
-  
-  Serial.println("  Запуск Ethernet.begin()...");
-  Ethernet.begin(mac, ip, gateway, gateway, subnet);
-  
-  delay(2000);
-  
-  if (Ethernet.localIP()[0] != 0)
-  {
-    ethConnected = true;
-    Serial.println("✅ Ethernet подключено!");
-    Serial.printf("  IP: %s\n", Ethernet.localIP().toString().c_str());
-    byte macRead[6];
-    Ethernet.macAddress(macRead);
-    Serial.printf("  MAC: %02X:%02X:%02X:%02X:%02X:%02X\n", 
-                  macRead[0], macRead[1], macRead[2], macRead[3], macRead[4], macRead[5]);
-  }
-  else
-  {
-    Serial.println("\n❌ ERROR: W5500 не найден или нет подключения!");
-    Serial.println("  Проверьте подключение SPI и питание 5V");
-  }
+  delay(1000);  // Ждём завершения сканирования
 
   // Инициализация встроенного LED для индикации
   pinMode(LED_BUILTIN_PIN, OUTPUT);
@@ -577,28 +542,33 @@ void loop()
 {
   unsigned long currentTime = millis();
 
-  // ==================== ПЕРЕПОДКЛЮЧЕНИЕ К ETHERNET ====================
-  if (!ethConnected)
+  // ==================== ПЕРЕПОДКЛЮЧЕНИЕ К WI-FI ====================
+  if (!WiFi.isConnected())
   {
-    Serial.println("\n⚠️  Ethernet отключён! Перезапуск...");
-    
-    byte mac[6] = {0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x85};
-    IPAddress ip(192, 168, 1, 185);
-    IPAddress gateway(192, 168, 1, 1);
-    IPAddress subnet(255, 255, 255, 0);
-    
-    Ethernet.begin(mac, ip, gateway, gateway, subnet);
-    delay(2000);
-    
-    if (Ethernet.localIP()[0] != 0)
+    Serial.println("\n⚠️  Wi-Fi отключён! Переподключение...");
+    wifiConnected = false;
+
+    WiFi.disconnect();
+    delay(1000);
+    WiFi.begin(WIFI_SSID_1, WIFI_PASSWORD_1);
+
+    unsigned long start = millis();
+    while (WiFi.status() != WL_CONNECTED && (millis() - start < 8000))
     {
-      ethConnected = true;
-      Serial.println("  ✅ Ethernet переподключено!");
-      Serial.printf("  IP: %s\n", Ethernet.localIP().toString().c_str());
+      delay(500);
+      Serial.print(".");
+    }
+
+    if (WiFi.status() == WL_CONNECTED)
+    {
+      wifiConnected = true;
+      Serial.println("\n  ✅ Переподключено!");
+      Serial.printf("  IP: %s\n", WiFi.localIP().toString().c_str());
+      Serial.printf("  RSSI: %d dBm\n", WiFi.RSSI());
     }
     else
     {
-      Serial.println("  ❌ Не удалось переподключиться!");
+      Serial.println("\n  ❌ Не удалось переподключиться!");
     }
   }
 
@@ -674,24 +644,19 @@ void loop()
   }
   mqttClient.loop();
 
-  // Индикация Ethernet
-  if (ethConnected)
+  // Индикация Wi-Fi
+  if (wifiConnected)
   {
-    digitalWrite(LED_BUILTIN_PIN, HIGH);  // Горит постоянно при подключении
+    int wifiRSSI = WiFi.RSSI();
+    updateWifiLed(wifiRSSI);
   }
   else
   {
-    // Мигание при отсутствии подключения
-    static unsigned long lastToggle = 0;
-    if (millis() - lastToggle > 200)
-    {
-      lastToggle = millis();
-      digitalWrite(LED_BUILTIN_PIN, !digitalRead(LED_BUILTIN_PIN));
-    }
+    digitalWrite(LED_BUILTIN_PIN, LOW);
   }
 
-  // Обработка OTA обновлений — временно отключена
-  // ArduinoOTA.handle();
+  // Обработка OTA обновлений
+  ArduinoOTA.handle();
 
   // Запускаем сканирование один раз при загрузке
   // (уже запущено в setup())
@@ -2618,26 +2583,18 @@ bool connectMQTT()
   if (mqttClient.connected())
     return true;
 
-  // Проверка Ethernet
-  if (!ethConnected)
-  {
-    Serial.println("⚠️  Ethernet не подключён, MQTT пропущен");
-    return false;
-  }
-
   Serial.printf("Connecting to MQTT: %s:%d\n", MQTT_SERVER, MQTT_PORT);
   mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
 
   String clientId = "ESP32-St01-";
-  clientId += String(Ethernet.localIP()[3], HEX);  // Используем последний октет IP
+  clientId += String(random(0xffff), HEX);
 
   bool connected;
   connected = mqttClient.connect(clientId.c_str(), MQTT_USER, MQTT_PASS);
 
   if (connected)
   {
-    Serial.println("✅ MQTT connected!");
-    Serial.printf("  MQTT сервер: %s:%d\n", MQTT_SERVER, MQTT_PORT);
+    Serial.println("MQTT connected!");
     return true;
   }
   else
