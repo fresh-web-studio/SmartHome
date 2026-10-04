@@ -7,6 +7,7 @@
 #include <WiFi.h>
 #include <ESPmDNS.h>
 #include <ArduinoOTA.h>
+// #include <Ethernet.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <PubSubClient.h>
@@ -37,6 +38,7 @@ DallasTemperature sensors4(&oneWire4);
 #define LED_BUILTIN_PIN 2
 #define WIFI_LED_INTERVAL 3000  // Обновление индикации Wi-Fi каждые 3 сек
 
+// WiFi клиент для MQTT
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 
@@ -458,6 +460,7 @@ float tempReturn14 = 0.0;  // St14 Обратка
 float tempSupplyOutdoors = 0.0;  // Outdoors Подача
 float tempReturnOutdoors = 0.0;  // Outdoors Обратка
 bool wifiConnected = false;
+bool ethConnected = false;
 int currentNetwork = 0;  // Текущая сеть (0, 1 или 2)
 
 // Массив WiFi сетей для перебора
