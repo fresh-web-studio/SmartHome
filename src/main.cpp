@@ -655,6 +655,14 @@ void loop()
     digitalWrite(LED_BUILTIN_PIN, LOW);
   }
 
+  // Индикация работы: мигание каждые 2 секунды
+  static unsigned long ledBlinkLast = 0;
+  if (millis() - ledBlinkLast > 2000)
+  {
+    ledBlinkLast = millis();
+    digitalWrite(LED_BUILTIN_PIN, !digitalRead(LED_BUILTIN_PIN));
+  }
+
   // Обработка OTA обновлений
   ArduinoOTA.handle();
 
