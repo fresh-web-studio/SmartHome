@@ -7,7 +7,6 @@
 #include <WiFi.h>
 #include <ESPmDNS.h>
 #include <ArduinoOTA.h>
-#include <SPI.h>
 #include <EthernetENC.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
@@ -42,10 +41,9 @@ DallasTemperature sensors4(&oneWire4);
 // Ethernet W5500 (HSPI: GPIO14=SCLK, GPIO13=MOSI, GPIO12=MISO, GPIO5=CS)
 #define ETHERNET_CS_PIN 5
 
-// Клиент для MQTT — будет переключаться между Ethernet и WiFi
-EthernetClient ethClient;
+// Клиент для MQTT — используем Ethernet как основной
 WiFiClient wifiClient;
-PubSubClient* mqttClient = nullptr;
+PubSubClient mqttClient(wifiClient);
 
 // Адреса датчиков St01
 DeviceAddress st01SupplyAddr = ST01_SUPPLY_ADDR;
@@ -426,6 +424,44 @@ void diagnoseOneWire()
 
 unsigned long previousSensingTime = 0;
 unsigned long previousSendTime = 0;
+float tempSupply = 0.0;
+float tempReturn = 0.0;
+float tempSupply2 = 0.0;  // St02 Подача
+float tempReturn2 = 0.0;  // St02 Обратка
+float tempSupply3 = 0.0;  // St03 Подача
+float tempReturn3 = 0.0;  // St03 Обратка
+float tempSupply4 = 0.0;  // St04 Подача
+float tempReturn4 = 0.0;  // St04 Обратка
+float tempSupply5 = 0.0;  // St05 Подача
+float tempReturn5 = 0.0;  // St05 Обратка
+float tempSupply8 = 0.0;  // St08 Подача
+float tempReturn8 = 0.0;  // St08 Обратка
+float tempSupply7 = 0.0;  // St07 Подача
+float tempReturn7 = 0.0;  // St07 Обратка
+float tempSupply6 = 0.0;  // St06 Подача
+float tempReturn6 = 0.0;  // St06 Обратка
+float tempSupply9 = 0.0;  // St09 Подача
+float tempReturn9 = 0.0;  // St09 Обратка
+float tempSupply10 = 0.0;  // St10 Подача
+float tempReturn10 = 0.0;  // St10 Обратка
+float tempSupply11 = 0.0;  // St11 Подача
+float tempReturn11 = 0.0;  // St11 Обратка
+float tempSupply12 = 0.0;  // St12 Подача
+float tempReturn12 = 0.0;  // St12 Обратка
+float tempSupply13 = 0.0;  // St13 Подача
+float tempReturn13 = 0.0;  // St13 Обратка
+float tempSupply17 = 0.0;  // St17 Подача
+float tempReturn17 = 0.0;  // St17 Обратка
+float tempSupply16 = 0.0;  // St16 Подача
+float tempReturn16 = 0.0;  // St16 Обратка
+float tempSupply15 = 0.0;  // St15 Подача
+float tempReturn15 = 0.0;  // St15 Обратка
+float tempSupplyTU = 0.0;  // TU Подача
+float tempReturnTU = 0.0;  // TU Обратка
+float tempSupply14 = 0.0;  // St14 Подача
+float tempReturn14 = 0.0;  // St14 Обратка
+float tempSupplyOutdoors = 0.0;  // Outdoors Подача
+float tempReturnOutdoors = 0.0;  // Outdoors Обратка
 bool wifiConnected = false;
 bool ethConnected = false;
 int currentNetwork = 0;  // Текущая сеть (0, 1 или 2)
@@ -484,95 +520,113 @@ void setup()
   Serial.println("========================================");
 
   // Запускаем сканирование всех датчиков
-  // TEMP: Отключено — сканирование блокирует Serial
-  // scanAllSensors();
-  // delay(1000);  // Ждём завершения сканирования
-  
-  Serial.println("\nSCAN DISABLED (too much output)");
-  Serial.flush();
+  scanAllSensors();
+  delay(1000);  // Ждём завершения сканирования
 
-  // ==================== ИНИЦИАЛИЗАЦИЯ ETHERNET (W5500) ======
-  // TEMP: Отключено — EthernetClient не работает с W5500
-  // W5500 физически подключён, но не используется
-  Serial.println("\n>>> ETHERNET SKIPPED (W5500 not supported) <<<");
-  Serial.flush();
-  ethConnected = false;
+  // ==================== ИНИЦИАЛИЗАЦИЯ ETHERNET (W5500) ===
+  // TEMP: Отключено — Ethernet.init() блокирует выполнение
+  /*
+  Serial.println("\n=== ИНИЦИАЛИЗАЦИЯ ETHERNET ===");
+  Serial.println("  Ethernet.init()...");
+  Ethernet.init(ETHERNET_CS_PIN);
+  Serial.println("  delay(500)...");
+  delay(500);
+  Serial.println("  Ethernet.begin()...");
   
-  // ==================== ПОДКЛЮЧЕНИЕ К WI-FI ====================
+  // Используем DHCP — роутер сам назначит IP
+  byte mac[6] = {0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x85};
+  Ethernet.begin(mac);
+  
+  Serial.println("  Ожидание IP...");
+  // Ждём получения IP (timeout 15 сек)
+  unsigned long ethStart = millis();
+  bool ethReady = false;
+  while (millis() - ethStart < 15000)
+  {
+    IPAddress ip = Ethernet.localIP();
+    if (ip[0] != 0 && ip[3] != 0)
+    {
+      ethReady = true;
+      break;
+    }
+    delay(1000);
+    Serial.print(".");
+  }
+  
+  if (ethReady)
+  {
+    ethConnected = true;
+    Serial.println("\n✅ Ethernet подключено!");
+    Serial.printf("  IP: %s\n", Ethernet.localIP().toString().c_str());
+    byte macRead[6];
+    Ethernet.macAddress(macRead);
+    Serial.printf("  MAC: %02X:%02X:%02X:%02X:%02X:%02X\n", 
+                  macRead[0], macRead[1], macRead[2], macRead[3], macRead[4], macRead[5]);
+  }
+  else
+  {
+    Serial.println("\n❌ Ethernet не подключён! Переход на WiFi...");
+    ethConnected = false;
+  }
+  */
+  
+  // TEMP: Используем WiFi
   Serial.println("\n=== WiFi (основной канал) ===");
-  Serial.flush();
-  
   WiFi.disconnect();
   delay(500);
   WiFi.begin(WIFI_SSID_1, WIFI_PASSWORD_1);
-  Serial.println("  WiFi.begin()...");
-  Serial.flush();
   
   unsigned long wifiStart = millis();
-  while (WiFi.status() != WL_CONNECTED && (millis() - wifiStart < 10000))
+  while (WiFi.status() != WL_CONNECTED && (millis() - wifiStart < 8000))
   {
     delay(500);
     Serial.print(".");
-    Serial.flush();
   }
-  Serial.println("\n  WiFi.status() DONE");
-  Serial.flush();
   
   if (WiFi.status() == WL_CONNECTED)
   {
     wifiConnected = true;
-    Serial.println("\n  >>> WIFI CONNECTED <<<");
+    Serial.println("\n✅ WiFi подключён!");
     Serial.printf("  IP: %s\n", WiFi.localIP().toString().c_str());
     Serial.printf("  RSSI: %d dBm\n", WiFi.RSSI());
-    
-    // Используем WiFiClient для MQTT
-    mqttClient = new PubSubClient(wifiClient);
-    mqttClient->setServer(MQTT_SERVER, MQTT_PORT);
-    Serial.printf("  MQTT server: %s:%d (WiFi)\n", MQTT_SERVER, MQTT_PORT);
-    Serial.flush();
   }
   else
   {
-    Serial.println("\n  >>> WIFI FAILED <<<");
-    Serial.flush();
     Serial.println("\n❌ WiFi не подключён!");
-    Serial.flush();
+  }
+
+  // ==================== РЕЗЕРВНОЕ ПОДКЛЮЧЕНИЕ К WI-FI ======
+  if (!ethConnected)
+  {
+    Serial.println("\nПодключение к Wi-Fi (резерв)...");
+    WiFi.disconnect();
+    delay(500);
+    WiFi.begin(WIFI_SSID_1, WIFI_PASSWORD_1);
+    
+    unsigned long wifiStart = millis();
+    while (WiFi.status() != WL_CONNECTED && (millis() - wifiStart < 8000))
+    {
+      delay(500);
+      Serial.print(".");
+    }
+    
+    if (WiFi.status() == WL_CONNECTED)
+    {
+      wifiConnected = true;
+      Serial.println("\n✅ WiFi подключён (резерв)!");
+      Serial.printf("  IP: %s\n", WiFi.localIP().toString().c_str());
+      Serial.printf("  RSSI: %d dBm\n", WiFi.RSSI());
+    }
+    else
+    {
+      Serial.println("\n❌ WiFi не подключён!");
+    }
   }
 
   // Инициализация встроенного LED для индикации
   pinMode(LED_BUILTIN_PIN, OUTPUT);
   digitalWrite(LED_BUILTIN_PIN, LOW);
   Serial.println("LED indicator initialized (GPIO 2)");
-
-  // ==================== ИНИЦИАЛИЗАЦИЯ ДАТЧИКОВ ====================
-  Serial.println("\n=== Инициализация датчиков DS18B20 ===");
-  Serial.flush();
-  
-  sensors1.begin();
-  sensors1.setResolution(12);
-  Serial.println("  Шина 1 (GPIO4): OK");
-  Serial.flush();
-  
-  sensors2.begin();
-  sensors2.setResolution(12);
-  Serial.println("  Шина 2 (GPIO16): OK");
-  Serial.flush();
-  
-  sensors3.begin();
-  sensors3.setResolution(12);
-  Serial.println("  Шина 3 (GPIO17): OK");
-  Serial.flush();
-  
-  sensors4.begin();
-  sensors4.setResolution(12);
-  Serial.println("  Шина 4 (GPIO18): OK");
-  Serial.flush();
-  
-  // Показываем количество датчиков
-  Serial.printf("  Датчики: Шина1=%d, Шина2=%d, Шина3=%d, Шина4=%d\n",
-                sensors1.getDeviceCount(), sensors2.getDeviceCount(),
-                sensors3.getDeviceCount(), sensors4.getDeviceCount());
-  Serial.flush();
 
   // OTA временно отключена — используется Ethernet
   // if (ethConnected)
@@ -600,7 +654,7 @@ void loop()
     WiFi.begin(WIFI_SSID_1, WIFI_PASSWORD_1);
 
     unsigned long start = millis();
-    while (WiFi.status() != WL_CONNECTED && (millis() - start < 10000))
+    while (WiFi.status() != WL_CONNECTED && (millis() - start < 8000))
     {
       delay(500);
       Serial.print(".");
@@ -612,27 +666,11 @@ void loop()
       Serial.println("\n  ✅ Переподключено!");
       Serial.printf("  IP: %s\n", WiFi.localIP().toString().c_str());
       Serial.printf("  RSSI: %d dBm\n", WiFi.RSSI());
-      
-      // Пересоздаём MQTT клиент
-      delete mqttClient;
-      mqttClient = new PubSubClient(wifiClient);
-      mqttClient->setServer(MQTT_SERVER, MQTT_PORT);
     }
     else
     {
       Serial.println("\n  ❌ Не удалось переподключиться!");
     }
-  }
-
-  // Индикация Wi-Fi
-  if (wifiConnected)
-  {
-    int wifiRSSI = WiFi.RSSI();
-    updateWifiLed(wifiRSSI);
-  }
-  else
-  {
-    digitalWrite(LED_BUILTIN_PIN, LOW);
   }
 
   // Чтение температуры — без блокирующих delay!
@@ -644,7 +682,7 @@ void loop()
     unsigned long waitStart = millis();
     while (millis() - waitStart < 750)
     {
-      mqttClient->loop();  // Поддерживаем MQTT во время ожидания
+      mqttClient.loop();  // Поддерживаем MQTT во время ожидания
     }
     
     sensors2.requestTemperatures();
@@ -652,7 +690,7 @@ void loop()
     waitStart = millis();
     while (millis() - waitStart < 750)
     {
-      mqttClient->loop();  // Поддерживаем MQTT во время ожидания
+      mqttClient.loop();  // Поддерживаем MQTT во время ожидания
     }
     
     readTemperature();
@@ -670,7 +708,7 @@ void loop()
     waitStart = millis();
     while (millis() - waitStart < 750)
     {
-      mqttClient->loop();  // Поддерживаем MQTT во время ожидания
+      mqttClient.loop();  // Поддерживаем MQTT во время ожидания
     }
     readTemperatureSt09();
     readTemperatureSt10();
@@ -683,7 +721,7 @@ void loop()
     waitStart = millis();
     while (millis() - waitStart < 750)
     {
-      mqttClient->loop();  // Поддерживаем MQTT во время ожидания
+      mqttClient.loop();  // Поддерживаем MQTT во время ожидания
     }
     readTemperatureSt17();
     readTemperatureSt16();
@@ -700,49 +738,22 @@ void loop()
   }
 
   // Поддерживаем MQTT соединение
-  if (!mqttClient->connected())
+  if (!mqttClient.connected())
   {
     Serial.println("⚠️  MQTT disconnected — reconnecting...");
     connectMQTT();
   }
-  mqttClient->loop();
+  mqttClient.loop();
 
-  // Индикация статуса сети
-  if (ethConnected)
+  // Индикация Wi-Fi
+  if (wifiConnected)
   {
-    // Проверяем что Ethernet ещё подключён
-    IPAddress ethIP = Ethernet.localIP();
-    if (ethIP[0] != 0 && ethIP[3] != 0)
-    {
-      // Ethernet работает — LED горит постоянно
-      digitalWrite(LED_BUILTIN_PIN, HIGH);
-    }
-    else
-    {
-      // Ethernet отключён — мигаем быстро
-      static unsigned long ledBlinkLast = 0;
-      if (millis() - ledBlinkLast > 200)
-      {
-        ledBlinkLast = millis();
-        digitalWrite(LED_BUILTIN_PIN, !digitalRead(LED_BUILTIN_PIN));
-      }
-    }
-  }
-  else if (wifiConnected)
-  {
-    // WiFi работает (резерв) — LED мигает медленно
     int wifiRSSI = WiFi.RSSI();
     updateWifiLed(wifiRSSI);
   }
   else
   {
-    // Нет подключения — LED мигает быстро
-    static unsigned long ledBlinkLast = 0;
-    if (millis() - ledBlinkLast > 200)
-    {
-      ledBlinkLast = millis();
-      digitalWrite(LED_BUILTIN_PIN, !digitalRead(LED_BUILTIN_PIN));
-    }
+    digitalWrite(LED_BUILTIN_PIN, LOW);
   }
 
   // Обработка OTA обновлений
@@ -832,6 +843,12 @@ void readTemperature()
   }
   
   // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupply == tempReturn)
+  {
+    Serial.println("⚠️  Ст01: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupply = 0.0;
+    tempReturn = 0.0;
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St02 ========================
@@ -915,6 +932,12 @@ void readTemperatureSt02()
   }
   
   // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupply2 == tempReturn2)
+  {
+    Serial.println("⚠️  Ст02: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupply2 = 0.0;
+    tempReturn2 = 0.0;
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St03 ========================
@@ -999,6 +1022,12 @@ void readTemperatureSt03()
   }
   
   // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupply3 == tempReturn3)
+  {
+    Serial.println("⚠️  Ст03: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupply3 = 0.0;
+    tempReturn3 = 0.0;
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St04 ========================
@@ -1083,6 +1112,12 @@ void readTemperatureSt04()
   }
   
   // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupply4 == tempReturn4)
+  {
+    Serial.println("⚠️  Ст04: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupply4 = 0.0;
+    tempReturn4 = 0.0;
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St05 ========================
@@ -1167,6 +1202,12 @@ void readTemperatureSt05()
   }
   
   // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupply5 == tempReturn5)
+  {
+    Serial.println("⚠️  Ст05: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupply5 = 0.0;
+    tempReturn5 = 0.0;
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St08 (GPIO16) ========================
@@ -1251,6 +1292,12 @@ void readTemperatureSt08()
   }
   
   // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupply8 == tempReturn8)
+  {
+    Serial.println("⚠️  Ст08: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupply8 = 0.0;
+    tempReturn8 = 0.0;
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St07 (GPIO16) ========================
@@ -1335,6 +1382,12 @@ void readTemperatureSt07()
   }
   
   // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupply7 == tempReturn7)
+  {
+    Serial.println("⚠️  Ст07: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupply7 = 0.0;
+    tempReturn7 = 0.0;
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St06 (GPIO16) ========================
@@ -1417,6 +1470,12 @@ void readTemperatureSt06()
   }
   
   // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupply6 == tempReturn6)
+  {
+    Serial.println("⚠️  Ст06: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupply6 = 0.0;
+    tempReturn6 = 0.0;
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St09 (GPIO17) ========================
@@ -1499,6 +1558,12 @@ void readTemperatureSt09()
   }
   
   // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupply9 == tempReturn9)
+  {
+    Serial.println("⚠️  Ст09: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupply9 = 0.0;
+    tempReturn9 = 0.0;
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St10 (GPIO17) ========================
@@ -1581,6 +1646,12 @@ void readTemperatureSt10()
   }
   
   // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupply10 == tempReturn10)
+  {
+    Serial.println("⚠️  Ст10: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupply10 = 0.0;
+    tempReturn10 = 0.0;
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St11 (GPIO17) ========================
@@ -1663,6 +1734,12 @@ void readTemperatureSt11()
   }
   
   // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupply11 == tempReturn11)
+  {
+    Serial.println("⚠️  Ст11: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupply11 = 0.0;
+    tempReturn11 = 0.0;
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St12 (GPIO17) ========================
@@ -1745,6 +1822,12 @@ void readTemperatureSt12()
   }
   
   // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupply12 == tempReturn12)
+  {
+    Serial.println("⚠️  Ст12: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupply12 = 0.0;
+    tempReturn12 = 0.0;
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St13 (GPIO17) ========================
@@ -1827,6 +1910,12 @@ void readTemperatureSt13()
   }
   
   // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupply13 == tempReturn13)
+  {
+    Serial.println("⚠️  Ст13: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupply13 = 0.0;
+    tempReturn13 = 0.0;
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St17 (GPIO5) ========================
@@ -1909,6 +1998,12 @@ void readTemperatureSt17()
   }
   
   // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupply17 == tempReturn17)
+  {
+    Serial.println("⚠️  Ст17: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupply17 = 0.0;
+    tempReturn17 = 0.0;
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St16 (GPIO18) ========================
@@ -1991,6 +2086,12 @@ void readTemperatureSt16()
   }
   
   // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupply16 == tempReturn16)
+  {
+    Serial.println("⚠️  Ст16: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupply16 = 0.0;
+    tempReturn16 = 0.0;
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St15 (GPIO18) ========================
@@ -2073,6 +2174,12 @@ void readTemperatureSt15()
   }
   
   // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupply15 == tempReturn15)
+  {
+    Serial.println("⚠️  Ст15: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupply15 = 0.0;
+    tempReturn15 = 0.0;
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ TU (ТеплоУзел, GPIO18) ========================
@@ -2155,6 +2262,12 @@ void readTemperatureTU()
   }
   
   // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupplyTU == tempReturnTU)
+  {
+    Serial.println("⚠️  TU: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupplyTU = 0.0;
+    tempReturnTU = 0.0;
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St14 (GPIO18) ========================
@@ -2237,6 +2350,12 @@ void readTemperatureSt14()
   }
   
   // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupply14 == tempReturn14)
+  {
+    Serial.println("⚠️  Ст14: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupply14 = 0.0;
+    tempReturn14 = 0.0;
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ Outdoors (GPIO4) ========================
@@ -2319,11 +2438,17 @@ void readTemperatureOutdoors()
   }
   
   // Проверка: если температуры одинаковые — ошибка чтения
+  if (supplyFound && returnFound && tempSupplyOutdoors == tempReturnOutdoors)
+  {
+    Serial.println("⚠️  Outdoors: Одинаковые температуры — ошибка чтения 1-Wire!");
+    tempSupplyOutdoors = 0.0;
+    tempReturnOutdoors = 0.0;
+  }
 }
 
 void sendToSprutHub()
 {
-  if (!wifiConnected && !ethConnected)
+  if (!wifiConnected)
     return;
 
   char supplyStr[10];
@@ -2370,8 +2495,8 @@ void sendToSprutHub()
   {
     sprintf(supplyStr, "%.2f", tempSupply);
     sprintf(returnStr, "%.2f", tempReturn);
-    mqttClient->publish("SprutHub/St01-P/DS18B20/temperature", supplyStr, true);
-    mqttClient->publish("SprutHub/St01-O/DS18B20/temperature", returnStr, true);
+    mqttClient.publish("SprutHub/St01-P/DS18B20/temperature", supplyStr, true);
+    mqttClient.publish("SprutHub/St01-O/DS18B20/temperature", returnStr, true);
     Serial.printf("MQTT -> St01-P: %s  |  St01-O: %s\n", supplyStr, returnStr);
   }
 
@@ -2380,8 +2505,8 @@ void sendToSprutHub()
   {
     sprintf(supplyStr2, "%.2f", tempSupply2);
     sprintf(returnStr2, "%.2f", tempReturn2);
-    mqttClient->publish("SprutHub/St02-P/DS18B20/temperature", supplyStr2, true);
-    mqttClient->publish("SprutHub/St02-O/DS18B20/temperature", returnStr2, true);
+    mqttClient.publish("SprutHub/St02-P/DS18B20/temperature", supplyStr2, true);
+    mqttClient.publish("SprutHub/St02-O/DS18B20/temperature", returnStr2, true);
     Serial.printf("MQTT -> St02-P: %s  |  St02-O: %s\n", supplyStr2, returnStr2);
   }
 
@@ -2390,8 +2515,8 @@ void sendToSprutHub()
   {
     sprintf(supplyStr3, "%.2f", tempSupply3);
     sprintf(returnStr3, "%.2f", tempReturn3);
-    mqttClient->publish("SprutHub/St03-P/DS18B20/temperature", supplyStr3, true);
-    mqttClient->publish("SprutHub/St03-O/DS18B20/temperature", returnStr3, true);
+    mqttClient.publish("SprutHub/St03-P/DS18B20/temperature", supplyStr3, true);
+    mqttClient.publish("SprutHub/St03-O/DS18B20/temperature", returnStr3, true);
     Serial.printf("MQTT -> St03-P: %s  |  St03-O: %s\n", supplyStr3, returnStr3);
   }
 
@@ -2400,8 +2525,8 @@ void sendToSprutHub()
   {
     sprintf(supplyStr4, "%.2f", tempSupply4);
     sprintf(returnStr4, "%.2f", tempReturn4);
-    mqttClient->publish("SprutHub/St04-P/DS18B20/temperature", supplyStr4, true);
-    mqttClient->publish("SprutHub/St04-O/DS18B20/temperature", returnStr4, true);
+    mqttClient.publish("SprutHub/St04-P/DS18B20/temperature", supplyStr4, true);
+    mqttClient.publish("SprutHub/St04-O/DS18B20/temperature", returnStr4, true);
     Serial.printf("MQTT -> St04-P: %s  |  St04-O: %s\n", supplyStr4, returnStr4);
   }
 
@@ -2410,8 +2535,8 @@ void sendToSprutHub()
   {
     sprintf(supplyStr5, "%.2f", tempSupply5);
     sprintf(returnStr5, "%.2f", tempReturn5);
-    mqttClient->publish("SprutHub/St05-P/DS18B20/temperature", supplyStr5, true);
-    mqttClient->publish("SprutHub/St05-O/DS18B20/temperature", returnStr5, true);
+    mqttClient.publish("SprutHub/St05-P/DS18B20/temperature", supplyStr5, true);
+    mqttClient.publish("SprutHub/St05-O/DS18B20/temperature", returnStr5, true);
     Serial.printf("MQTT -> St05-P: %s  |  St05-O: %s\n", supplyStr5, returnStr5);
   }
 
@@ -2420,8 +2545,8 @@ void sendToSprutHub()
   {
     sprintf(supplyStr8, "%.2f", tempSupply8);
     sprintf(returnStr8, "%.2f", tempReturn8);
-    mqttClient->publish("SprutHub/St08-P/DS18B20/temperature", supplyStr8, true);
-    mqttClient->publish("SprutHub/St08-O/DS18B20/temperature", returnStr8, true);
+    mqttClient.publish("SprutHub/St08-P/DS18B20/temperature", supplyStr8, true);
+    mqttClient.publish("SprutHub/St08-O/DS18B20/temperature", returnStr8, true);
     Serial.printf("MQTT -> St08-P: %s  |  St08-O: %s\n", supplyStr8, returnStr8);
   }
 
@@ -2430,8 +2555,8 @@ void sendToSprutHub()
   {
     sprintf(supplyStr7, "%.2f", tempSupply7);
     sprintf(returnStr7, "%.2f", tempReturn7);
-    mqttClient->publish("SprutHub/St07-P/DS18B20/temperature", supplyStr7, true);
-    mqttClient->publish("SprutHub/St07-O/DS18B20/temperature", returnStr7, true);
+    mqttClient.publish("SprutHub/St07-P/DS18B20/temperature", supplyStr7, true);
+    mqttClient.publish("SprutHub/St07-O/DS18B20/temperature", returnStr7, true);
     Serial.printf("MQTT -> St07-P: %s  |  St07-O: %s\n", supplyStr7, returnStr7);
   }
 
@@ -2440,8 +2565,8 @@ void sendToSprutHub()
   {
     sprintf(supplyStr6, "%.2f", tempSupply6);
     sprintf(returnStr6, "%.2f", tempReturn6);
-    mqttClient->publish("SprutHub/St06-P/DS18B20/temperature", supplyStr6, true);
-    mqttClient->publish("SprutHub/St06-O/DS18B20/temperature", returnStr6, true);
+    mqttClient.publish("SprutHub/St06-P/DS18B20/temperature", supplyStr6, true);
+    mqttClient.publish("SprutHub/St06-O/DS18B20/temperature", returnStr6, true);
     Serial.printf("MQTT -> St06-P: %s  |  St06-O: %s\n", supplyStr6, returnStr6);
   }
 
@@ -2450,8 +2575,8 @@ void sendToSprutHub()
   {
     sprintf(supplyStr9, "%.2f", tempSupply9);
     sprintf(returnStr9, "%.2f", tempReturn9);
-    mqttClient->publish("SprutHub/St09-P/DS18B20/temperature", supplyStr9, true);
-    mqttClient->publish("SprutHub/St09-O/DS18B20/temperature", returnStr9, true);
+    mqttClient.publish("SprutHub/St09-P/DS18B20/temperature", supplyStr9, true);
+    mqttClient.publish("SprutHub/St09-O/DS18B20/temperature", returnStr9, true);
     Serial.printf("MQTT -> St09-P: %s  |  St09-O: %s\n", supplyStr9, returnStr9);
   }
 
@@ -2460,8 +2585,8 @@ void sendToSprutHub()
   {
     sprintf(supplyStr10, "%.2f", tempSupply10);
     sprintf(returnStr10, "%.2f", tempReturn10);
-    mqttClient->publish("SprutHub/St10-P/DS18B20/temperature", supplyStr10, true);
-    mqttClient->publish("SprutHub/St10-O/DS18B20/temperature", returnStr10, true);
+    mqttClient.publish("SprutHub/St10-P/DS18B20/temperature", supplyStr10, true);
+    mqttClient.publish("SprutHub/St10-O/DS18B20/temperature", returnStr10, true);
     Serial.printf("MQTT -> St10-P: %s  |  St10-O: %s\n", supplyStr10, returnStr10);
   }
 
@@ -2470,8 +2595,8 @@ void sendToSprutHub()
   {
     sprintf(supplyStr11, "%.2f", tempSupply11);
     sprintf(returnStr11, "%.2f", tempReturn11);
-    mqttClient->publish("SprutHub/St11-P/DS18B20/temperature", supplyStr11, true);
-    mqttClient->publish("SprutHub/St11-O/DS18B20/temperature", returnStr11, true);
+    mqttClient.publish("SprutHub/St11-P/DS18B20/temperature", supplyStr11, true);
+    mqttClient.publish("SprutHub/St11-O/DS18B20/temperature", returnStr11, true);
     Serial.printf("MQTT -> St11-P: %s  |  St11-O: %s\n", supplyStr11, returnStr11);
   }
 
@@ -2480,8 +2605,8 @@ void sendToSprutHub()
   {
     sprintf(supplyStr12, "%.2f", tempSupply12);
     sprintf(returnStr12, "%.2f", tempReturn12);
-    mqttClient->publish("SprutHub/St12-P/DS18B20/temperature", supplyStr12, true);
-    mqttClient->publish("SprutHub/St12-O/DS18B20/temperature", returnStr12, true);
+    mqttClient.publish("SprutHub/St12-P/DS18B20/temperature", supplyStr12, true);
+    mqttClient.publish("SprutHub/St12-O/DS18B20/temperature", returnStr12, true);
     Serial.printf("MQTT -> St12-P: %s  |  St12-O: %s\n", supplyStr12, returnStr12);
   }
 
@@ -2490,8 +2615,8 @@ void sendToSprutHub()
   {
     sprintf(supplyStr13, "%.2f", tempSupply13);
     sprintf(returnStr13, "%.2f", tempReturn13);
-    mqttClient->publish("SprutHub/St13-P/DS18B20/temperature", supplyStr13, true);
-    mqttClient->publish("SprutHub/St13-O/DS18B20/temperature", returnStr13, true);
+    mqttClient.publish("SprutHub/St13-P/DS18B20/temperature", supplyStr13, true);
+    mqttClient.publish("SprutHub/St13-O/DS18B20/temperature", returnStr13, true);
     Serial.printf("MQTT -> St13-P: %s  |  St13-O: %s\n", supplyStr13, returnStr13);
   }
 
@@ -2500,8 +2625,8 @@ void sendToSprutHub()
   {
     sprintf(supplyStr17, "%.2f", tempSupply17);
     sprintf(returnStr17, "%.2f", tempReturn17);
-    mqttClient->publish("SprutHub/St17-P/DS18B20/temperature", supplyStr17, true);
-    mqttClient->publish("SprutHub/St17-O/DS18B20/temperature", returnStr17, true);
+    mqttClient.publish("SprutHub/St17-P/DS18B20/temperature", supplyStr17, true);
+    mqttClient.publish("SprutHub/St17-O/DS18B20/temperature", returnStr17, true);
     Serial.printf("MQTT -> St17-P: %s  |  St17-O: %s\n", supplyStr17, returnStr17);
   }
 
@@ -2510,8 +2635,8 @@ void sendToSprutHub()
   {
     sprintf(supplyStr16, "%.2f", tempSupply16);
     sprintf(returnStr16, "%.2f", tempReturn16);
-    mqttClient->publish("SprutHub/St16-P/DS18B20/temperature", supplyStr16, true);
-    mqttClient->publish("SprutHub/St16-O/DS18B20/temperature", returnStr16, true);
+    mqttClient.publish("SprutHub/St16-P/DS18B20/temperature", supplyStr16, true);
+    mqttClient.publish("SprutHub/St16-O/DS18B20/temperature", returnStr16, true);
     Serial.printf("MQTT -> St16-P: %s  |  St16-O: %s\n", supplyStr16, returnStr16);
   }
 
@@ -2520,8 +2645,8 @@ void sendToSprutHub()
   {
     sprintf(supplyStr15, "%.2f", tempSupply15);
     sprintf(returnStr15, "%.2f", tempReturn15);
-    mqttClient->publish("SprutHub/St15-P/DS18B20/temperature", supplyStr15, true);
-    mqttClient->publish("SprutHub/St15-O/DS18B20/temperature", returnStr15, true);
+    mqttClient.publish("SprutHub/St15-P/DS18B20/temperature", supplyStr15, true);
+    mqttClient.publish("SprutHub/St15-O/DS18B20/temperature", returnStr15, true);
     Serial.printf("MQTT -> St15-P: %s  |  St15-O: %s\n", supplyStr15, returnStr15);
   }
 
@@ -2530,8 +2655,8 @@ void sendToSprutHub()
   {
     sprintf(supplyStrTU, "%.2f", tempSupplyTU);
     sprintf(returnStrTU, "%.2f", tempReturnTU);
-    mqttClient->publish("SprutHub/TU-P/DS18B20/temperature", supplyStrTU, true);
-    mqttClient->publish("SprutHub/TU-O/DS18B20/temperature", returnStrTU, true);
+    mqttClient.publish("SprutHub/TU-P/DS18B20/temperature", supplyStrTU, true);
+    mqttClient.publish("SprutHub/TU-O/DS18B20/temperature", returnStrTU, true);
     Serial.printf("MQTT -> TU-P: %s  |  TU-O: %s\n", supplyStrTU, returnStrTU);
   }
 
@@ -2540,75 +2665,44 @@ void sendToSprutHub()
   {
     sprintf(supplyStr14, "%.2f", tempSupply14);
     sprintf(returnStr14, "%.2f", tempReturn14);
-    mqttClient->publish("SprutHub/St14-P/DS18B20/temperature", supplyStr14, true);
-    mqttClient->publish("SprutHub/St14-O/DS18B20/temperature", returnStr14, true);
+    mqttClient.publish("SprutHub/St14-P/DS18B20/temperature", supplyStr14, true);
+    mqttClient.publish("SprutHub/St14-O/DS18B20/temperature", returnStr14, true);
     Serial.printf("MQTT -> St14-P: %s  |  St14-O: %s\n", supplyStr14, returnStr14);
   }
 
-  // Outdoors (Ветка 1, GPIO4) — только Подача (нет Обратки), может быть отрицательная
-  if (tempSupplyOutdoors != DEVICE_DISCONNECTED_C)
+  // Outdoors (Ветка 1, GPIO4) — только Подача (нет Обратки)
+  if (tempSupplyOutdoors > 0.0)
   {
     sprintf(supplyStrOutdoors, "%.2f", tempSupplyOutdoors);
-    mqttClient->publish("SprutHub/Outdoors-P/DS18B20/temperature", supplyStrOutdoors, true);
+    mqttClient.publish("SprutHub/Outdoors-P/DS18B20/temperature", supplyStrOutdoors, true);
     Serial.printf("MQTT -> Outdoors-P: %s\n", supplyStrOutdoors);
   }
 }
 
 bool connectMQTT()
 {
-  if (mqttClient == nullptr)
-  {
-    Serial.println(">>> MQTT: client is NULL <<<");
-    Serial.flush();
-    return false;
-  }
-  
-  if (mqttClient->connected())
+  if (mqttClient.connected())
     return true;
 
-  Serial.println(">>> MQTT connectMQTT() called <<<");
-  Serial.printf("  ethConnected=%d, wifiConnected=%d\n", ethConnected, wifiConnected);
-  Serial.flush();
-  
-  // Проверяем что сеть доступна
-  if (!ethConnected && !wifiConnected)
+  Serial.printf("Connecting to MQTT: %s:%d\n", MQTT_SERVER, MQTT_PORT);
+  mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
+
+  String clientId = "ESP32-St01-";
+  clientId += String(random(0xffff), HEX);
+
+  bool connected;
+  connected = mqttClient.connect(clientId.c_str(), MQTT_USER, MQTT_PASS);
+
+  if (connected)
   {
-    Serial.println("  >>> NO NETWORK AVAILABLE <<<");
-    Serial.flush();
+    Serial.println("MQTT connected!");
+    return true;
+  }
+  else
+  {
+    Serial.printf("MQTT failed (rc=%d)\n", mqttClient.state());
     return false;
   }
-  
-  // Устанавливаем сервер
-  mqttClient->setServer(MQTT_SERVER, MQTT_PORT);
-
-  String clientId = "ESP32_St01";
-  
-  Serial.printf("  ClientID: %s, User: %s\n", clientId.c_str(), MQTT_USER);
-  Serial.flush();
-
-  // Пробуем подключиться несколько раз с задержкой
-  for (int attempt = 0; attempt < 3; attempt++)
-  {
-    Serial.printf("  Attempt %d/3...\n", attempt + 1);
-    Serial.flush();
-    
-    bool connected = mqttClient->connect(clientId.c_str(), MQTT_USER, MQTT_PASS);
-    
-    if (connected)
-    {
-      Serial.println("  >>> MQTT CONNECTED! <<<");
-      Serial.flush();
-      return true;
-    }
-    
-    Serial.printf("  Attempt %d failed (rc=%d), retrying in 2s...\n", attempt + 1, mqttClient->state());
-    Serial.flush();
-    delay(2000);
-  }
-  
-  Serial.printf("  >>> ALL ATTEMPTS FAILED (rc=%d) <<<\n", mqttClient->state());
-  Serial.flush();
-  return false;
 }
 
 // ======================== ИНДИКАЦИЯ ========================
