@@ -42,8 +42,8 @@ DallasTemperature sensors4(&oneWire4);
 #define ETHERNET_CS_PIN 5
 
 // Клиент для MQTT — используем Ethernet как основной
-WiFiClient wifiClient;
-PubSubClient mqttClient(wifiClient);
+EthernetClient ethClient;
+PubSubClient mqttClient(ethClient);
 
 // Адреса датчиков St01
 DeviceAddress st01SupplyAddr = ST01_SUPPLY_ADDR;
