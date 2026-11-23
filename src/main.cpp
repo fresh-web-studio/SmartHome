@@ -7,7 +7,6 @@
 #include <WiFi.h>
 #include <ESPmDNS.h>
 #include <ArduinoOTA.h>
-#include <EthernetENC.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <PubSubClient.h>
@@ -38,12 +37,11 @@ DallasTemperature sensors4(&oneWire4);
 #define LED_BUILTIN_PIN 2
 #define WIFI_LED_INTERVAL 3000  // Обновление индикации Wi-Fi каждые 3 сек
 
-// Ethernet W5500 (HSPI: GPIO14=SCLK, GPIO13=MOSI, GPIO12=MISO, GPIO5=CS)
-#define ETHERNET_CS_PIN 5
+// Ethernet W5500 отключён — используем только WiFi
 
-// Клиент для MQTT — используем Ethernet как основной
-EthernetClient ethClient;
-PubSubClient mqttClient(ethClient);
+// Клиент для MQTT — используем WiFi
+WiFiClient wifiClient;
+PubSubClient mqttClient(wifiClient);
 
 // Адреса датчиков St01
 DeviceAddress st01SupplyAddr = ST01_SUPPLY_ADDR;
@@ -570,38 +568,15 @@ void setup()
   }
   */
   
-  // TEMP: Используем WiFi
-  Serial.println("\n=== WiFi (основной канал) ===");
-  WiFi.disconnect();
-  delay(500);
-  WiFi.begin(WIFI_SSID_1, WIFI_PASSWORD_1);
+  // ==================== ПОДКЛЮЧЕНИЕ К WI-FI (перебор 3 сетей) ====================
+  Serial.println("\n=== Подключение к Wi-Fi ===");
   
-  unsigned long wifiStart = millis();
-  while (WiFi.status() != WL_CONNECTED && (millis() - wifiStart < 8000))
+  for (int i = 0; i < 3; i++)
   {
-    delay(500);
-    Serial.print(".");
-  }
-  
-  if (WiFi.status() == WL_CONNECTED)
-  {
-    wifiConnected = true;
-    Serial.println("\n✅ WiFi подключён!");
-    Serial.printf("  IP: %s\n", WiFi.localIP().toString().c_str());
-    Serial.printf("  RSSI: %d dBm\n", WiFi.RSSI());
-  }
-  else
-  {
-    Serial.println("\n❌ WiFi не подключён!");
-  }
-
-  // ==================== РЕЗЕРВНОЕ ПОДКЛЮЧЕНИЕ К WI-FI ======
-  if (!ethConnected)
-  {
-    Serial.println("\nПодключение к Wi-Fi (резерв)...");
+    Serial.printf("  Сеть %d: %s\n", i + 1, networks[i].ssid);
     WiFi.disconnect();
     delay(500);
-    WiFi.begin(WIFI_SSID_1, WIFI_PASSWORD_1);
+    WiFi.begin(networks[i].ssid, networks[i].password);
     
     unsigned long wifiStart = millis();
     while (WiFi.status() != WL_CONNECTED && (millis() - wifiStart < 8000))
@@ -613,14 +588,21 @@ void setup()
     if (WiFi.status() == WL_CONNECTED)
     {
       wifiConnected = true;
-      Serial.println("\n✅ WiFi подключён (резерв)!");
+      Serial.println("\n  ✅ Подключено к сети " + String(i + 1) + "!");
+      Serial.printf("  SSID: %s\n", networks[i].ssid);
       Serial.printf("  IP: %s\n", WiFi.localIP().toString().c_str());
       Serial.printf("  RSSI: %d dBm\n", WiFi.RSSI());
+      break;
     }
     else
     {
-      Serial.println("\n❌ WiFi не подключён!");
+      Serial.println("  ❌ Сеть " + String(i + 1) + " не доступна");
     }
+  }
+
+  if (!wifiConnected)
+  {
+    Serial.println("\n❌ Ни одна Wi-Fi сеть не доступна!");
   }
 
   // Инициализация встроенного LED для индикации
@@ -646,30 +628,41 @@ void loop()
   // ==================== ПЕРЕПОДКЛЮЧЕНИЕ К WI-FI ====================
   if (!WiFi.isConnected())
   {
-    Serial.println("\n⚠️  Wi-Fi отключён! Переподключение...");
+    Serial.println("\n⚠️  Wi-Fi отключён! Перебор сетей...");
     wifiConnected = false;
 
-    WiFi.disconnect();
-    delay(1000);
-    WiFi.begin(WIFI_SSID_1, WIFI_PASSWORD_1);
-
-    unsigned long start = millis();
-    while (WiFi.status() != WL_CONNECTED && (millis() - start < 8000))
+    for (int i = 0; i < 3; i++)
     {
+      Serial.printf("  Сеть %d: %s\n", i + 1, networks[i].ssid);
+      WiFi.disconnect();
       delay(500);
-      Serial.print(".");
+      WiFi.begin(networks[i].ssid, networks[i].password);
+
+      unsigned long start = millis();
+      while (WiFi.status() != WL_CONNECTED && (millis() - start < 8000))
+      {
+        delay(500);
+        Serial.print(".");
+      }
+
+      if (WiFi.status() == WL_CONNECTED)
+      {
+        wifiConnected = true;
+        Serial.println("\n  ✅ Подключено к сети " + String(i + 1) + "!");
+        Serial.printf("  SSID: %s\n", networks[i].ssid);
+        Serial.printf("  IP: %s\n", WiFi.localIP().toString().c_str());
+        Serial.printf("  RSSI: %d dBm\n", WiFi.RSSI());
+        break;
+      }
+      else
+      {
+        Serial.println("  ❌ Сеть " + String(i + 1) + " не доступна");
+      }
     }
 
-    if (WiFi.status() == WL_CONNECTED)
+    if (!wifiConnected)
     {
-      wifiConnected = true;
-      Serial.println("\n  ✅ Переподключено!");
-      Serial.printf("  IP: %s\n", WiFi.localIP().toString().c_str());
-      Serial.printf("  RSSI: %d dBm\n", WiFi.RSSI());
-    }
-    else
-    {
-      Serial.println("\n  ❌ Не удалось переподключиться!");
+      Serial.println("\n  ❌ Ни одна сеть не доступна!");
     }
   }
 
