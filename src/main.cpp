@@ -19,7 +19,7 @@
 #define ONE_WIRE_BUS_1 4
 #define ONE_WIRE_BUS_2 16  // D16 для Ст06-Ст08
 #define ONE_WIRE_BUS_3 17  // D17 для Ст09-Ст13
-#define ONE_WIRE_BUS_4 18  // D18 для Ст17
+#define ONE_WIRE_BUS_4 21  // D21 для Ст14-Ст17, TU
 
 OneWire oneWire1(ONE_WIRE_BUS_1);
 OneWire oneWire2(ONE_WIRE_BUS_2);
