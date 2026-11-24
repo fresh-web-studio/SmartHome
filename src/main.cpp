@@ -460,8 +460,25 @@ float tempSupply14 = 0.0;  // St14 Подача
 float tempReturn14 = 0.0;  // St14 Обратка
 float tempSupplyOutdoors = 0.0;  // Outdoors Подача
 float tempReturnOutdoors = 0.0;  // Outdoors Обратка
-bool wifiConnected = false;
-bool ethConnected = false;
+float tempDiff1 = 0.0;   // St01 разница
+float tempDiff2 = 0.0;   // St02 разница
+float tempDiff3 = 0.0;   // St03 разница
+float tempDiff4 = 0.0;   // St04 разница
+float tempDiff5 = 0.0;   // St05 разница
+float tempDiff6 = 0.0;   // St06 разница
+float tempDiff7 = 0.0;   // St07 разница
+float tempDiff8 = 0.0;   // St08 разница
+float tempDiff9 = 0.0;   // St09 разница
+float tempDiff10 = 0.0;  // St10 разница
+float tempDiff11 = 0.0;  // St11 разница
+float tempDiff12 = 0.0;  // St12 разница
+float tempDiff13 = 0.0;  // St13 разница
+float tempDiff14 = 0.0;  // St14 разница
+float tempDiff15 = 0.0;  // St15 разница
+float tempDiff16 = 0.0;  // St16 разница
+float tempDiff17 = 0.0;  // St17 разница
+float tempDiffTU = 0.0;  // TU разница
+ bool wifiConnected = false;
 int currentNetwork = 0;  // Текущая сеть (0, 1 или 2)
 
 // Массив WiFi сетей для перебора
@@ -521,54 +538,7 @@ void setup()
   scanAllSensors();
   delay(1000);  // Ждём завершения сканирования
 
-  // ==================== ИНИЦИАЛИЗАЦИЯ ETHERNET (W5500) ===
-  // TEMP: Отключено — Ethernet.init() блокирует выполнение
-  /*
-  Serial.println("\n=== ИНИЦИАЛИЗАЦИЯ ETHERNET ===");
-  Serial.println("  Ethernet.init()...");
-  Ethernet.init(ETHERNET_CS_PIN);
-  Serial.println("  delay(500)...");
-  delay(500);
-  Serial.println("  Ethernet.begin()...");
-  
-  // Используем DHCP — роутер сам назначит IP
-  byte mac[6] = {0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x85};
-  Ethernet.begin(mac);
-  
-  Serial.println("  Ожидание IP...");
-  // Ждём получения IP (timeout 15 сек)
-  unsigned long ethStart = millis();
-  bool ethReady = false;
-  while (millis() - ethStart < 15000)
-  {
-    IPAddress ip = Ethernet.localIP();
-    if (ip[0] != 0 && ip[3] != 0)
-    {
-      ethReady = true;
-      break;
-    }
-    delay(1000);
-    Serial.print(".");
-  }
-  
-  if (ethReady)
-  {
-    ethConnected = true;
-    Serial.println("\n✅ Ethernet подключено!");
-    Serial.printf("  IP: %s\n", Ethernet.localIP().toString().c_str());
-    byte macRead[6];
-    Ethernet.macAddress(macRead);
-    Serial.printf("  MAC: %02X:%02X:%02X:%02X:%02X:%02X\n", 
-                  macRead[0], macRead[1], macRead[2], macRead[3], macRead[4], macRead[5]);
-  }
-  else
-  {
-    Serial.println("\n❌ Ethernet не подключён! Переход на WiFi...");
-    ethConnected = false;
-  }
-  */
-  
-  // ==================== ПОДКЛЮЧЕНИЕ К WI-FI (перебор 3 сетей) ====================
+  // ==================== ПОДКЛЮЧЕНИЕ К WI-FI (перебор сетей) ====================
   Serial.println("\n=== Подключение к Wi-Fi ===");
   
   for (int i = 0; i < 3; i++)
@@ -609,16 +579,6 @@ void setup()
   pinMode(LED_BUILTIN_PIN, OUTPUT);
   digitalWrite(LED_BUILTIN_PIN, LOW);
   Serial.println("LED indicator initialized (GPIO 2)");
-
-  // OTA временно отключена — используется Ethernet
-  // if (ethConnected)
-  // {
-  //   initOTA();
-  // }
-  // else
-  // {
-  //   Serial.println("OTA skipped - Ethernet not connected");
-  // }
 }
 
 void loop()
@@ -842,6 +802,13 @@ void readTemperature()
     tempSupply = 0.0;
     tempReturn = 0.0;
   }
+  
+  // Разница температур
+  if (supplyFound && returnFound)
+  {
+    tempDiff1 = tempSupply - tempReturn;
+    Serial.printf("📊 Ст01 разница: %.2f°C\n", tempDiff1);
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St02 ========================
@@ -930,6 +897,13 @@ void readTemperatureSt02()
     Serial.println("⚠️  Ст02: Одинаковые температуры — ошибка чтения 1-Wire!");
     tempSupply2 = 0.0;
     tempReturn2 = 0.0;
+  }
+  
+  // Разница температур
+  if (supplyFound && returnFound)
+  {
+    tempDiff2 = tempSupply2 - tempReturn2;
+    Serial.printf("📊 Ст02 разница: %.2f°C\n", tempDiff2);
   }
 }
 
@@ -1021,6 +995,13 @@ void readTemperatureSt03()
     tempSupply3 = 0.0;
     tempReturn3 = 0.0;
   }
+  
+  // Разница температур
+  if (supplyFound && returnFound)
+  {
+    tempDiff3 = tempSupply3 - tempReturn3;
+    Serial.printf("📊 Ст03 разница: %.2f°C\n", tempDiff3);
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St04 ========================
@@ -1110,6 +1091,13 @@ void readTemperatureSt04()
     Serial.println("⚠️  Ст04: Одинаковые температуры — ошибка чтения 1-Wire!");
     tempSupply4 = 0.0;
     tempReturn4 = 0.0;
+  }
+  
+  // Разница температур
+  if (supplyFound && returnFound)
+  {
+    tempDiff4 = tempSupply4 - tempReturn4;
+    Serial.printf("📊 Ст04 разница: %.2f°C\n", tempDiff4);
   }
 }
 
@@ -1201,6 +1189,13 @@ void readTemperatureSt05()
     tempSupply5 = 0.0;
     tempReturn5 = 0.0;
   }
+  
+  // Разница температур
+  if (supplyFound && returnFound)
+  {
+    tempDiff5 = tempSupply5 - tempReturn5;
+    Serial.printf("📊 Ст05 разница: %.2f°C\n", tempDiff5);
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St08 (GPIO16) ========================
@@ -1290,6 +1285,13 @@ void readTemperatureSt08()
     Serial.println("⚠️  Ст08: Одинаковые температуры — ошибка чтения 1-Wire!");
     tempSupply8 = 0.0;
     tempReturn8 = 0.0;
+  }
+  
+  // Разница температур
+  if (supplyFound && returnFound)
+  {
+    tempDiff8 = tempSupply8 - tempReturn8;
+    Serial.printf("📊 Ст08 разница: %.2f°C\n", tempDiff8);
   }
 }
 
@@ -1381,6 +1383,13 @@ void readTemperatureSt07()
     tempSupply7 = 0.0;
     tempReturn7 = 0.0;
   }
+  
+  // Разница температур
+  if (supplyFound && returnFound)
+  {
+    tempDiff7 = tempSupply7 - tempReturn7;
+    Serial.printf("📊 Ст07 разница: %.2f°C\n", tempDiff7);
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St06 (GPIO16) ========================
@@ -1468,6 +1477,13 @@ void readTemperatureSt06()
     Serial.println("⚠️  Ст06: Одинаковые температуры — ошибка чтения 1-Wire!");
     tempSupply6 = 0.0;
     tempReturn6 = 0.0;
+  }
+  
+  // Разница температур
+  if (supplyFound && returnFound)
+  {
+    tempDiff6 = tempSupply6 - tempReturn6;
+    Serial.printf("📊 Ст06 разница: %.2f°C\n", tempDiff6);
   }
 }
 
@@ -1557,6 +1573,13 @@ void readTemperatureSt09()
     tempSupply9 = 0.0;
     tempReturn9 = 0.0;
   }
+  
+  // Разница температур
+  if (supplyFound && returnFound)
+  {
+    tempDiff9 = tempSupply9 - tempReturn9;
+    Serial.printf("📊 Ст09 разница: %.2f°C\n", tempDiff9);
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St10 (GPIO17) ========================
@@ -1644,6 +1667,13 @@ void readTemperatureSt10()
     Serial.println("⚠️  Ст10: Одинаковые температуры — ошибка чтения 1-Wire!");
     tempSupply10 = 0.0;
     tempReturn10 = 0.0;
+  }
+  
+  // Разница температур
+  if (supplyFound && returnFound)
+  {
+    tempDiff10 = tempSupply10 - tempReturn10;
+    Serial.printf("📊 Ст10 разница: %.2f°C\n", tempDiff10);
   }
 }
 
@@ -1733,6 +1763,13 @@ void readTemperatureSt11()
     tempSupply11 = 0.0;
     tempReturn11 = 0.0;
   }
+  
+  // Разница температур
+  if (supplyFound && returnFound)
+  {
+    tempDiff11 = tempSupply11 - tempReturn11;
+    Serial.printf("📊 Ст11 разница: %.2f°C\n", tempDiff11);
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St12 (GPIO17) ========================
@@ -1820,6 +1857,13 @@ void readTemperatureSt12()
     Serial.println("⚠️  Ст12: Одинаковые температуры — ошибка чтения 1-Wire!");
     tempSupply12 = 0.0;
     tempReturn12 = 0.0;
+  }
+  
+  // Разница температур
+  if (supplyFound && returnFound)
+  {
+    tempDiff12 = tempSupply12 - tempReturn12;
+    Serial.printf("📊 Ст12 разница: %.2f°C\n", tempDiff12);
   }
 }
 
@@ -1909,6 +1953,13 @@ void readTemperatureSt13()
     tempSupply13 = 0.0;
     tempReturn13 = 0.0;
   }
+  
+  // Разница температур
+  if (supplyFound && returnFound)
+  {
+    tempDiff13 = tempSupply13 - tempReturn13;
+    Serial.printf("📊 Ст13 разница: %.2f°C\n", tempDiff13);
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St17 (GPIO5) ========================
@@ -1996,6 +2047,13 @@ void readTemperatureSt17()
     Serial.println("⚠️  Ст17: Одинаковые температуры — ошибка чтения 1-Wire!");
     tempSupply17 = 0.0;
     tempReturn17 = 0.0;
+  }
+  
+  // Разница температур
+  if (supplyFound && returnFound)
+  {
+    tempDiff17 = tempSupply17 - tempReturn17;
+    Serial.printf("📊 Ст17 разница: %.2f°C\n", tempDiff17);
   }
 }
 
@@ -2085,6 +2143,13 @@ void readTemperatureSt16()
     tempSupply16 = 0.0;
     tempReturn16 = 0.0;
   }
+  
+  // Разница температур
+  if (supplyFound && returnFound)
+  {
+    tempDiff16 = tempSupply16 - tempReturn16;
+    Serial.printf("📊 Ст16 разница: %.2f°C\n", tempDiff16);
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St15 (GPIO18) ========================
@@ -2172,6 +2237,13 @@ void readTemperatureSt15()
     Serial.println("⚠️  Ст15: Одинаковые температуры — ошибка чтения 1-Wire!");
     tempSupply15 = 0.0;
     tempReturn15 = 0.0;
+  }
+  
+  // Разница температур
+  if (supplyFound && returnFound)
+  {
+    tempDiff15 = tempSupply15 - tempReturn15;
+    Serial.printf("📊 Ст15 разница: %.2f°C\n", tempDiff15);
   }
 }
 
@@ -2261,6 +2333,13 @@ void readTemperatureTU()
     tempSupplyTU = 0.0;
     tempReturnTU = 0.0;
   }
+  
+  // Разница температур
+  if (supplyFound && returnFound)
+  {
+    tempDiffTU = tempSupplyTU - tempReturnTU;
+    Serial.printf("📊 TU разница: %.2f°C\n", tempDiffTU);
+  }
 }
 
 // ======================== ЧТЕНИЕ ДАТЧИКОВ St14 (GPIO18) ========================
@@ -2348,6 +2427,13 @@ void readTemperatureSt14()
     Serial.println("⚠️  Ст14: Одинаковые температуры — ошибка чтения 1-Wire!");
     tempSupply14 = 0.0;
     tempReturn14 = 0.0;
+  }
+  
+  // Разница температур
+  if (supplyFound && returnFound)
+  {
+    tempDiff14 = tempSupply14 - tempReturn14;
+    Serial.printf("📊 Ст14 разница: %.2f°C\n", tempDiff14);
   }
 }
 
@@ -2482,6 +2568,25 @@ void sendToSprutHub()
   char returnStr14[10];
   char supplyStrOutdoors[10];
   char returnStrOutdoors[10];
+  char diffStr[10];
+  char diffStr1[10];
+  char diffStr2[10];
+  char diffStr3[10];
+  char diffStr4[10];
+  char diffStr5[10];
+  char diffStr6[10];
+  char diffStr7[10];
+  char diffStr8[10];
+  char diffStr9[10];
+  char diffStr10[10];
+  char diffStr11[10];
+  char diffStr12[10];
+  char diffStr13[10];
+  char diffStr14[10];
+  char diffStr15[10];
+  char diffStr16[10];
+  char diffStr17[10];
+  char diffStrTU[10];
 
   // St01
   if (tempSupply > 0.0 && tempReturn > 0.0)
@@ -2491,6 +2596,14 @@ void sendToSprutHub()
     mqttClient.publish("SprutHub/St01-P/DS18B20/temperature", supplyStr, true);
     mqttClient.publish("SprutHub/St01-O/DS18B20/temperature", returnStr, true);
     Serial.printf("MQTT -> St01-P: %s  |  St01-O: %s\n", supplyStr, returnStr);
+  }
+  
+  // St01 разница
+  if (tempDiff1 != 0.0)
+  {
+    sprintf(diffStr1, "%.2f", tempDiff1);
+    mqttClient.publish("SprutHub/St01-R/DS18B20/temperature", diffStr1, true);
+    Serial.printf("MQTT -> St01-R: %s\n", diffStr1);
   }
 
   // St02
@@ -2502,6 +2615,14 @@ void sendToSprutHub()
     mqttClient.publish("SprutHub/St02-O/DS18B20/temperature", returnStr2, true);
     Serial.printf("MQTT -> St02-P: %s  |  St02-O: %s\n", supplyStr2, returnStr2);
   }
+  
+  // St02 разница
+  if (tempDiff2 != 0.0)
+  {
+    sprintf(diffStr2, "%.2f", tempDiff2);
+    mqttClient.publish("SprutHub/St02-R/DS18B20/temperature", diffStr2, true);
+    Serial.printf("MQTT -> St02-R: %s\n", diffStr2);
+  }
 
   // St03
   if (tempSupply3 > 0.0 && tempReturn3 > 0.0)
@@ -2511,6 +2632,14 @@ void sendToSprutHub()
     mqttClient.publish("SprutHub/St03-P/DS18B20/temperature", supplyStr3, true);
     mqttClient.publish("SprutHub/St03-O/DS18B20/temperature", returnStr3, true);
     Serial.printf("MQTT -> St03-P: %s  |  St03-O: %s\n", supplyStr3, returnStr3);
+  }
+  
+  // St03 разница
+  if (tempDiff3 != 0.0)
+  {
+    sprintf(diffStr3, "%.2f", tempDiff3);
+    mqttClient.publish("SprutHub/St03-R/DS18B20/temperature", diffStr3, true);
+    Serial.printf("MQTT -> St03-R: %s\n", diffStr3);
   }
 
   // St04
@@ -2522,6 +2651,14 @@ void sendToSprutHub()
     mqttClient.publish("SprutHub/St04-O/DS18B20/temperature", returnStr4, true);
     Serial.printf("MQTT -> St04-P: %s  |  St04-O: %s\n", supplyStr4, returnStr4);
   }
+  
+  // St04 разница
+  if (tempDiff4 != 0.0)
+  {
+    sprintf(diffStr4, "%.2f", tempDiff4);
+    mqttClient.publish("SprutHub/St04-R/DS18B20/temperature", diffStr4, true);
+    Serial.printf("MQTT -> St04-R: %s\n", diffStr4);
+  }
 
   // St05
   if (tempSupply5 > 0.0 && tempReturn5 > 0.0)
@@ -2531,6 +2668,14 @@ void sendToSprutHub()
     mqttClient.publish("SprutHub/St05-P/DS18B20/temperature", supplyStr5, true);
     mqttClient.publish("SprutHub/St05-O/DS18B20/temperature", returnStr5, true);
     Serial.printf("MQTT -> St05-P: %s  |  St05-O: %s\n", supplyStr5, returnStr5);
+  }
+  
+  // St05 разница
+  if (tempDiff5 != 0.0)
+  {
+    sprintf(diffStr5, "%.2f", tempDiff5);
+    mqttClient.publish("SprutHub/St05-R/DS18B20/temperature", diffStr5, true);
+    Serial.printf("MQTT -> St05-R: %s\n", diffStr5);
   }
 
   // St08
@@ -2542,6 +2687,14 @@ void sendToSprutHub()
     mqttClient.publish("SprutHub/St08-O/DS18B20/temperature", returnStr8, true);
     Serial.printf("MQTT -> St08-P: %s  |  St08-O: %s\n", supplyStr8, returnStr8);
   }
+  
+  // St08 разница
+  if (tempDiff8 != 0.0)
+  {
+    sprintf(diffStr8, "%.2f", tempDiff8);
+    mqttClient.publish("SprutHub/St08-R/DS18B20/temperature", diffStr8, true);
+    Serial.printf("MQTT -> St08-R: %s\n", diffStr8);
+  }
 
   // St07
   if (tempSupply7 > 0.0 && tempReturn7 > 0.0)
@@ -2551,6 +2704,14 @@ void sendToSprutHub()
     mqttClient.publish("SprutHub/St07-P/DS18B20/temperature", supplyStr7, true);
     mqttClient.publish("SprutHub/St07-O/DS18B20/temperature", returnStr7, true);
     Serial.printf("MQTT -> St07-P: %s  |  St07-O: %s\n", supplyStr7, returnStr7);
+  }
+  
+  // St07 разница
+  if (tempDiff7 != 0.0)
+  {
+    sprintf(diffStr7, "%.2f", tempDiff7);
+    mqttClient.publish("SprutHub/St07-R/DS18B20/temperature", diffStr7, true);
+    Serial.printf("MQTT -> St07-R: %s\n", diffStr7);
   }
 
   // St06
@@ -2562,6 +2723,14 @@ void sendToSprutHub()
     mqttClient.publish("SprutHub/St06-O/DS18B20/temperature", returnStr6, true);
     Serial.printf("MQTT -> St06-P: %s  |  St06-O: %s\n", supplyStr6, returnStr6);
   }
+  
+  // St06 разница
+  if (tempDiff6 != 0.0)
+  {
+    sprintf(diffStr6, "%.2f", tempDiff6);
+    mqttClient.publish("SprutHub/St06-R/DS18B20/temperature", diffStr6, true);
+    Serial.printf("MQTT -> St06-R: %s\n", diffStr6);
+  }
 
   // St09 (Ветка 3, GPIO17)
   if (tempSupply9 > 0.0 && tempReturn9 > 0.0)
@@ -2571,6 +2740,14 @@ void sendToSprutHub()
     mqttClient.publish("SprutHub/St09-P/DS18B20/temperature", supplyStr9, true);
     mqttClient.publish("SprutHub/St09-O/DS18B20/temperature", returnStr9, true);
     Serial.printf("MQTT -> St09-P: %s  |  St09-O: %s\n", supplyStr9, returnStr9);
+  }
+  
+  // St09 разница
+  if (tempDiff9 != 0.0)
+  {
+    sprintf(diffStr9, "%.2f", tempDiff9);
+    mqttClient.publish("SprutHub/St09-R/DS18B20/temperature", diffStr9, true);
+    Serial.printf("MQTT -> St09-R: %s\n", diffStr9);
   }
 
   // St10 (Ветка 3, GPIO17)
@@ -2582,6 +2759,14 @@ void sendToSprutHub()
     mqttClient.publish("SprutHub/St10-O/DS18B20/temperature", returnStr10, true);
     Serial.printf("MQTT -> St10-P: %s  |  St10-O: %s\n", supplyStr10, returnStr10);
   }
+  
+  // St10 разница
+  if (tempDiff10 != 0.0)
+  {
+    sprintf(diffStr10, "%.2f", tempDiff10);
+    mqttClient.publish("SprutHub/St10-R/DS18B20/temperature", diffStr10, true);
+    Serial.printf("MQTT -> St10-R: %s\n", diffStr10);
+  }
 
   // St11 (Ветка 3, GPIO17)
   if (tempSupply11 > 0.0 && tempReturn11 > 0.0)
@@ -2591,6 +2776,14 @@ void sendToSprutHub()
     mqttClient.publish("SprutHub/St11-P/DS18B20/temperature", supplyStr11, true);
     mqttClient.publish("SprutHub/St11-O/DS18B20/temperature", returnStr11, true);
     Serial.printf("MQTT -> St11-P: %s  |  St11-O: %s\n", supplyStr11, returnStr11);
+  }
+  
+  // St11 разница
+  if (tempDiff11 != 0.0)
+  {
+    sprintf(diffStr11, "%.2f", tempDiff11);
+    mqttClient.publish("SprutHub/St11-R/DS18B20/temperature", diffStr11, true);
+    Serial.printf("MQTT -> St11-R: %s\n", diffStr11);
   }
 
   // St12 (Ветка 3, GPIO17)
@@ -2602,6 +2795,14 @@ void sendToSprutHub()
     mqttClient.publish("SprutHub/St12-O/DS18B20/temperature", returnStr12, true);
     Serial.printf("MQTT -> St12-P: %s  |  St12-O: %s\n", supplyStr12, returnStr12);
   }
+  
+  // St12 разница
+  if (tempDiff12 != 0.0)
+  {
+    sprintf(diffStr12, "%.2f", tempDiff12);
+    mqttClient.publish("SprutHub/St12-R/DS18B20/temperature", diffStr12, true);
+    Serial.printf("MQTT -> St12-R: %s\n", diffStr12);
+  }
 
   // St13 (Ветка 3, GPIO17)
   if (tempSupply13 > 0.0 && tempReturn13 > 0.0)
@@ -2611,6 +2812,14 @@ void sendToSprutHub()
     mqttClient.publish("SprutHub/St13-P/DS18B20/temperature", supplyStr13, true);
     mqttClient.publish("SprutHub/St13-O/DS18B20/temperature", returnStr13, true);
     Serial.printf("MQTT -> St13-P: %s  |  St13-O: %s\n", supplyStr13, returnStr13);
+  }
+  
+  // St13 разница
+  if (tempDiff13 != 0.0)
+  {
+    sprintf(diffStr13, "%.2f", tempDiff13);
+    mqttClient.publish("SprutHub/St13-R/DS18B20/temperature", diffStr13, true);
+    Serial.printf("MQTT -> St13-R: %s\n", diffStr13);
   }
 
   // St17 (Ветка 4, GPIO18)
@@ -2622,6 +2831,14 @@ void sendToSprutHub()
     mqttClient.publish("SprutHub/St17-O/DS18B20/temperature", returnStr17, true);
     Serial.printf("MQTT -> St17-P: %s  |  St17-O: %s\n", supplyStr17, returnStr17);
   }
+  
+  // St17 разница
+  if (tempDiff17 != 0.0)
+  {
+    sprintf(diffStr17, "%.2f", tempDiff17);
+    mqttClient.publish("SprutHub/St17-R/DS18B20/temperature", diffStr17, true);
+    Serial.printf("MQTT -> St17-R: %s\n", diffStr17);
+  }
 
   // St16 (Ветка 4, GPIO18)
   if (tempSupply16 > 0.0 && tempReturn16 > 0.0)
@@ -2631,6 +2848,14 @@ void sendToSprutHub()
     mqttClient.publish("SprutHub/St16-P/DS18B20/temperature", supplyStr16, true);
     mqttClient.publish("SprutHub/St16-O/DS18B20/temperature", returnStr16, true);
     Serial.printf("MQTT -> St16-P: %s  |  St16-O: %s\n", supplyStr16, returnStr16);
+  }
+  
+  // St16 разница
+  if (tempDiff16 != 0.0)
+  {
+    sprintf(diffStr16, "%.2f", tempDiff16);
+    mqttClient.publish("SprutHub/St16-R/DS18B20/temperature", diffStr16, true);
+    Serial.printf("MQTT -> St16-R: %s\n", diffStr16);
   }
 
   // St15 (Ветка 4, GPIO18)
@@ -2642,6 +2867,14 @@ void sendToSprutHub()
     mqttClient.publish("SprutHub/St15-O/DS18B20/temperature", returnStr15, true);
     Serial.printf("MQTT -> St15-P: %s  |  St15-O: %s\n", supplyStr15, returnStr15);
   }
+  
+  // St15 разница
+  if (tempDiff15 != 0.0)
+  {
+    sprintf(diffStr15, "%.2f", tempDiff15);
+    mqttClient.publish("SprutHub/St15-R/DS18B20/temperature", diffStr15, true);
+    Serial.printf("MQTT -> St15-R: %s\n", diffStr15);
+  }
 
   // TU (ТеплоУзел, Ветка 4, GPIO18)
   if (tempSupplyTU > 0.0 && tempReturnTU > 0.0)
@@ -2652,6 +2885,14 @@ void sendToSprutHub()
     mqttClient.publish("SprutHub/TU-O/DS18B20/temperature", returnStrTU, true);
     Serial.printf("MQTT -> TU-P: %s  |  TU-O: %s\n", supplyStrTU, returnStrTU);
   }
+  
+  // TU разница
+  if (tempDiffTU != 0.0)
+  {
+    sprintf(diffStrTU, "%.2f", tempDiffTU);
+    mqttClient.publish("SprutHub/TU-R/DS18B20/temperature", diffStrTU, true);
+    Serial.printf("MQTT -> TU-R: %s\n", diffStrTU);
+  }
 
   // St14 (Ветка 4, GPIO18)
   if (tempSupply14 > 0.0 && tempReturn14 > 0.0)
@@ -2661,6 +2902,14 @@ void sendToSprutHub()
     mqttClient.publish("SprutHub/St14-P/DS18B20/temperature", supplyStr14, true);
     mqttClient.publish("SprutHub/St14-O/DS18B20/temperature", returnStr14, true);
     Serial.printf("MQTT -> St14-P: %s  |  St14-O: %s\n", supplyStr14, returnStr14);
+  }
+  
+  // St14 разница
+  if (tempDiff14 != 0.0)
+  {
+    sprintf(diffStr14, "%.2f", tempDiff14);
+    mqttClient.publish("SprutHub/St14-R/DS18B20/temperature", diffStr14, true);
+    Serial.printf("MQTT -> St14-R: %s\n", diffStr14);
   }
 
   // Outdoors (Ветка 1, GPIO4) — только Подача (нет Обратки)
